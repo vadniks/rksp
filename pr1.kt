@@ -2,8 +2,7 @@ import java.io.BufferedInputStream
 import java.lang.System.currentTimeMillis
 import java.util.*
 import java.util.concurrent.*
-import java.util.concurrent.locks.Condition
-import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.ArrayDeque
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.math.sqrt
@@ -213,27 +212,22 @@ object T3 {
         val timeout = 10000
 
         val maxFiles = 5
-        val queue = ArrayDeque<AkaFile>() as Queue<AkaFile>
+        val queue = java.util.ArrayDeque<AkaFile>() as Queue<AkaFile>
+        val lock = Any()
 
-        val globalLock = ReentrantLock()
-        val consumersConditional = globalLock.newCondition()
-        val generatorConditional = globalLock.newCondition()
+        val checker = HashMap<AkaFile, Boolean>()
+
+        fun queueFull(): Boolean {
+            var full: Boolean
+            synchronized(lock) { full = queue.size >= maxFiles }
+            return full
+        }
 
         fun timeoutNotExceeded(): Boolean { return currentTimeMillis() - startedAt < timeout  }
-        var finished = false
 
         val generatorThread = Thread {
-            while (timeoutNotExceeded().also { if (!it) finished = true }) {
-                globalLock.lock()
-
-                while (!finished && queue.size >= maxFiles)
-                    generatorConditional.await()
-
-                if (finished) {
-                    consumersConditional.signalAll()
-                    globalLock.unlock()
-                    break
-                }
+            while (timeoutNotExceeded()) {
+                if (queueFull()) continue
 
                 val akaFile = AkaFile(
                     Random.nextBytes(10).hashCode().toString(),
@@ -242,34 +236,40 @@ object T3 {
                         1 -> json
                         else -> xls
                     },
-                    Random.nextInt(10, 100)
+                    Random.nextInt(10, 101)
                 )
 
-                queue.add(akaFile)
+                synchronized(lock) {
+                    queue.add(akaFile)
+                    checker[akaFile] = false
+                }
+
                 println("generated file " + akaFile.name + '.' + akaFile.type)
                 Thread.sleep(Random.nextLong(1L, 11L) * 100L)
-
-                consumersConditional.signalAll()
-                globalLock.unlock()
             }
         }
 
+        fun queueEmpty(): Boolean {
+            var empty: Boolean
+            synchronized(lock) { empty = queue.isEmpty() }
+            return empty
+        }
+
         fun consumeAkaFile(type: String) {
-            while (timeoutNotExceeded().also { if (!it) finished = true }) {
-                globalLock.lock()
+            while (timeoutNotExceeded()) {
+                if (queueEmpty()) continue
 
-                var akaFile: AkaFile? = null
-                while (!finished && (queue.peek().also { akaFile = it } == null || akaFile!!.type != type))
-                    consumersConditional.await()
-
-                if (akaFile != null) {
+                var akaFile: AkaFile?
+                synchronized(lock) { akaFile = queue.peek() }
+                if (akaFile == null || akaFile!!.type != type) continue
+                
+                synchronized(lock) {
                     queue.remove(akaFile)
-                    println("consumed file " + akaFile!!.name + '.' + akaFile!!.type)
-                    Thread.sleep((akaFile!!.size * 7).toLong())
+                    checker[akaFile!!] = true
                 }
 
-                generatorConditional.signal()
-                globalLock.unlock()
+                println("consumed file " + akaFile!!.name + '.' + akaFile!!.type)
+                Thread.sleep((akaFile!!.size * 7).toLong())
             }
         }
 
@@ -278,17 +278,15 @@ object T3 {
         val jsonConsumerThread = Thread { consumeAkaFile(json) }.apply { start() }
         val xlsConsumerThread = Thread { consumeAkaFile(xls) }.apply { start() }
 
-        println("a")
         generatorThread.join()
-        println("b")
         xmlConsumerThread.join()
-        println("c")
         jsonConsumerThread.join()
-        println("d")
         xlsConsumerThread.join()
-        println("e")
 
         println("queue size " + queue.size)
+        for (i in checker)
+            if (!i.value)
+                throw IllegalStateException()
     }
 }
 
