@@ -1,7 +1,5 @@
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
+import org.apache.commons.io.FileUtils
+import java.io.*
 import java.lang.System.currentTimeMillis
 import java.nio.ByteBuffer
 import java.nio.file.Files
@@ -32,12 +30,12 @@ object P2T1 {
 }
 
 object P2T2 {
-    private val totalSize = (1 shl 20) * 100 // 1 mb * 100
-    private val originalFileName = "large1.bin"
-    private val copiedFileName = "large2.bin"
+    private const val totalSize = (1 shl 20) * 100 // 1 mb * 100
+    private const val originalFileName = "large1.bin"
+    private const val copiedFileName = "large2.bin"
 
-    private fun deleteCopiedIfExists() {
-        File(copiedFileName).apply {
+    private fun deleteFileIfExists(fileName: String) {
+        File(fileName).apply {
             if (exists()) delete()
         }
     }
@@ -45,23 +43,21 @@ object P2T2 {
     private val callerMethodName get() = Thread.currentThread().stackTrace[3].methodName
 
     private inline fun timeMeasured(crossinline block: () -> Unit) {
-        deleteCopiedIfExists()
+        deleteFileIfExists(copiedFileName)
         val start = currentTimeMillis()
         block()
-        println(callerMethodName + ' ' + (currentTimeMillis() - start))
+        println(callerMethodName + ' ' + (currentTimeMillis() - start) + "mc")
     }
 
     private fun copyIO() {
         timeMeasured {
-            val input = FileInputStream(originalFileName)
-            val output = FileOutputStream(copiedFileName)
-
-            var byte: Int
-            while (input.read().also { byte = it } != -1)
-                output.write(byte)
-
-            input.close()
-            output.close()
+            FileInputStream(originalFileName).use { input ->
+                FileOutputStream(copiedFileName).use { output ->
+                    var byte: Int
+                    while (input.read().also { byte = it } != -1)
+                        output.write(byte)
+                }
+            }
         }
     }
 
@@ -76,7 +72,15 @@ object P2T2 {
     }
 
     private fun copyApache() {
+        timeMeasured {
+            FileUtils.copyFile(File(originalFileName), File(copiedFileName))
+        }
+    }
 
+    private fun copyFiles() {
+        timeMeasured {
+            Files.copy(Paths.get(originalFileName), Paths.get(copiedFileName))
+        }
     }
 
     private fun progress(what: String, current: Int, total: Int, state: Int = 0): Int {
@@ -103,9 +107,10 @@ object P2T2 {
         }
     }
 
-    fun run() {
+    @Deprecated("too slow")
+    private fun createIO() {
         File(originalFileName).apply {
-            if (exists()) return
+            if (exists()) return@apply
 
             outputStream().use {
                 var state = 0
@@ -117,8 +122,30 @@ object P2T2 {
             }
             println()
         }
+    }
 
-        copyIO()
+    private fun createBuffered() {
+        deleteFileIfExists(originalFileName)
+        val writer = BufferedWriter(FileWriter(originalFileName), totalSize)
+
+        val chunkSize = 1000
+        var size = 0
+        var state = 0
+        while (size < totalSize) {
+            writer.write(CharArray(chunkSize) { Char(1) })
+            size += chunkSize
+            state = progress("creation", size, totalSize, state)
+        }
+        println()
+    }
+
+    fun run() {
+        createBuffered()
+
+//        copyIO()
+        copyFC()
+//        copyApache()
+//        copyFiles()
     }
 }
 
@@ -126,3 +153,4 @@ fun main() {
 //    P2T1.run()
     P2T2.run()
 }
+
