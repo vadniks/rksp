@@ -2,7 +2,8 @@ import java.io.BufferedInputStream
 import java.lang.System.currentTimeMillis
 import java.util.*
 import java.util.concurrent.*
-import kotlin.collections.ArrayDeque
+import java.util.concurrent.locks.Condition
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.math.sqrt
@@ -212,26 +213,31 @@ object T3 {
         val timeout = 10000
 
         val maxFiles = 5
-        val queue = java.util.ArrayDeque<AkaFile>() as Queue<AkaFile>
-        val lock = Any()
+        val queue = ArrayDeque<AkaFile>() as Queue<AkaFile>
 
-        val checker = HashMap<AkaFile, Boolean>()
-
-        fun queueFull(): Boolean {
-            var full: Boolean
-            synchronized(lock) { full = queue.size >= maxFiles }
-            return full
-        }
+        val globalLock = ReentrantLock()
+        val consumersConditional = globalLock.newCondition()
+        val generatorConditional = globalLock.newCondition()
 
         fun timeoutNotExceeded(): Boolean { return currentTimeMillis() - startedAt < timeout  }
+        var finished = false
 
         val generatorThread = Thread {
-            while (timeoutNotExceeded()) {
-                if (queueFull()) continue
+            while (timeoutNotExceeded().also { if (!it) finished = true }) {
+                globalLock.lock()
+
+                while (!finished && queue.size >= maxFiles)
+                    generatorConditional.await()
+
+                if (finished) {
+                    consumersConditional.signalAll()
+                    globalLock.unlock()
+                    break
+                }
 
                 val akaFile = AkaFile(
                     Random.nextBytes(10).hashCode().toString(),
-                    when (Random.nextInt(0, 2)) {
+                    when (Random.nextInt(0, 3)) {
                         0 -> xml
                         1 -> json
                         else -> xls
@@ -239,55 +245,56 @@ object T3 {
                     Random.nextInt(10, 100)
                 )
 
-                synchronized(lock) {
-                    queue.add(akaFile)
-                    checker[akaFile] = false
-                }
-
+                queue.add(akaFile)
                 println("generated file " + akaFile.name + '.' + akaFile.type)
-                Thread.sleep(Random.nextLong(1L, 10L) * 100L)
+                Thread.sleep(Random.nextLong(1L, 11L) * 100L)
+
+                consumersConditional.signalAll()
+                globalLock.unlock()
             }
         }
 
-        fun queueEmpty(): Boolean {
-            var empty: Boolean
-            synchronized(lock) { empty = queue.isEmpty() }
-            return empty
-        }
+        fun consumeAkaFile(type: String) {
+            while (timeoutNotExceeded().also { if (!it) finished = true }) {
+                globalLock.lock()
 
-        val consumer = Runnable {
-            while (timeoutNotExceeded()) {
-                if (queueEmpty()) continue
+                var akaFile: AkaFile? = null
+                while (!finished && (queue.peek().also { akaFile = it } == null || akaFile!!.type != type))
+                    consumersConditional.await()
 
-                var akaFile: AkaFile?
-                synchronized(lock) { akaFile = queue.poll() }
-                if (akaFile == null) continue
-                synchronized(lock) { checker[akaFile!!] = true }
+                if (akaFile != null) {
+                    queue.remove(akaFile)
+                    println("consumed file " + akaFile!!.name + '.' + akaFile!!.type)
+                    Thread.sleep((akaFile!!.size * 7).toLong())
+                }
 
-                println("consumed file " + akaFile!!.name + '.' + akaFile!!.type)
-                Thread.sleep((akaFile!!.size * 7).toLong())
+                generatorConditional.signal()
+                globalLock.unlock()
             }
         }
 
         generatorThread.start()
-        val xmlConsumerThread = Thread(consumer).apply { start() }
-        val jsonConsumerThread = Thread(consumer).apply { start() }
-        val xlsConsumerThread = Thread(consumer).apply { start() }
+        val xmlConsumerThread = Thread { consumeAkaFile(xml) }.apply { start() }
+        val jsonConsumerThread = Thread { consumeAkaFile(json) }.apply { start() }
+        val xlsConsumerThread = Thread { consumeAkaFile(xls) }.apply { start() }
 
+        println("a")
         generatorThread.join()
+        println("b")
         xmlConsumerThread.join()
+        println("c")
         jsonConsumerThread.join()
+        println("d")
         xlsConsumerThread.join()
+        println("e")
 
         println("queue size " + queue.size)
-        for (i in checker)
-            if (!i.value)
-                throw IllegalStateException()
     }
 }
 
 fun main() {
-    T1.run()
+//    T1.run()
 //    T2.run()
-//    T3.run()
+    T3.run()
 }
+
