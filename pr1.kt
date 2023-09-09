@@ -187,7 +187,9 @@ object T2 {
 
             val input = String(bytes.slice(0..(bytes.size - 2)).toByteArray())
             if (input == "q") break
-            val number = input.toInt()
+
+            val number = try { input.toInt() }
+            catch (e: NumberFormatException) { continue }
 
             @Suppress("UNCHECKED_CAST")
             val task: Future<Int> = executor.submit(Callable {
@@ -333,7 +335,7 @@ object T3 {
 
 fun main() {
 //    T1.run()
-//    T2.run()
-    T3.run()
+    T2.run()
+//    T3.run()
 }
 
