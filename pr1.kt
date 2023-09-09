@@ -10,7 +10,7 @@ import kotlin.collections.HashMap
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-object T1 {
+object P1T1 {
 
     fun run() {
         val size = 10000
@@ -160,7 +160,7 @@ object T1 {
     }
 }
 
-object T2 {
+object P1T2 {
 
     fun run() {
         val inn = System.`in` as BufferedInputStream
@@ -204,7 +204,7 @@ object T2 {
     }
 }
 
-object T3 {
+object P1T3 {
     private data class AkaFile(val name: String, val type: String, val size: Int)
     private val AkaFile.fullName get() = "$name.$type"
 
@@ -334,8 +334,8 @@ object T3 {
 }
 
 fun main() {
-//    T1.run()
-    T2.run()
-//    T3.run()
+//    P1T1.run()
+//    P1T2.run()
+    P1T3.run()
 }
 
