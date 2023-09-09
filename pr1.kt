@@ -1,8 +1,10 @@
 import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileReader
+import java.io.FileWriter
 import java.lang.System.currentTimeMillis
 import java.util.*
 import java.util.concurrent.*
-import kotlin.collections.ArrayDeque
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.math.sqrt
@@ -201,18 +203,25 @@ object T2 {
 }
 
 object T3 {
+    private data class AkaFile(val name: String, val type: String, val size: Int)
+    private val AkaFile.fullName get() = "$name.$type"
 
     fun run() {
+        val dir = "files"
+        File(dir).apply {
+            if (exists()) deleteRecursively()
+            mkdir()
+        }
+
         val xml = "xml"
         val json = "json"
         val xls = "xls"
-        data class AkaFile(val name: String, val type: String, val size: Int)
 
         val startedAt = currentTimeMillis()
         val timeout = 10000
 
         val maxFiles = 5
-        val queue = java.util.ArrayDeque<AkaFile>() as Queue<AkaFile>
+        val queue = ArrayDeque<AkaFile>() as Queue<AkaFile>
         val lock = Any()
 
         val checker = HashMap<AkaFile, Boolean>()
@@ -225,12 +234,29 @@ object T3 {
 
         fun timeoutNotExceeded(): Boolean { return currentTimeMillis() - startedAt < timeout  }
 
+        fun continuousHash(next: Int, previous: Int? = null): Int {
+            return if (previous == null) next
+            else next xor previous
+        }
+
+        fun createRealFile(akaFile: AkaFile): Int {
+            val writer = FileWriter(akaFile.fullName)
+            var hash: Int? = null
+
+            for (i in 0 until akaFile.size)
+                writer.write(Random.nextInt(0, 256)
+                    .also { hash = continuousHash(it, hash) })
+
+            writer.close()
+            return hash!!
+        }
+
         val generatorThread = Thread {
             while (timeoutNotExceeded()) {
                 if (queueFull()) continue
 
                 val akaFile = AkaFile(
-                    Random.nextBytes(10).hashCode().toString(),
+                    dir + '/' + Random.nextBytes(10).hashCode().toString(),
                     when (Random.nextInt(0, 3)) {
                         0 -> xml
                         1 -> json
@@ -239,12 +265,14 @@ object T3 {
                     Random.nextInt(10, 101)
                 )
 
+                var hash: Int
                 synchronized(lock) {
+                    hash = createRealFile(akaFile)
                     queue.add(akaFile)
                     checker[akaFile] = false
                 }
 
-                println("generated file " + akaFile.name + '.' + akaFile.type)
+                println("generated file ${akaFile.fullName} with hash $hash")
                 Thread.sleep(Random.nextLong(1L, 11L) * 100L)
             }
         }
@@ -255,6 +283,17 @@ object T3 {
             return empty
         }
 
+        fun readRealFile(akaFile: AkaFile): Int {
+            val reader = FileReader(akaFile.fullName)
+            var hash: Int? = null
+
+            for (i in 0 until akaFile.size)
+                hash = continuousHash(reader.read(), hash)
+
+            reader.close()
+            return hash!!
+        }
+
         fun consumeAkaFile(type: String) {
             while (timeoutNotExceeded()) {
                 if (queueEmpty()) continue
@@ -262,13 +301,15 @@ object T3 {
                 var akaFile: AkaFile?
                 synchronized(lock) { akaFile = queue.peek() }
                 if (akaFile == null || akaFile!!.type != type) continue
-                
+
+                var hash: Int
                 synchronized(lock) {
-                    queue.remove(akaFile)
+                    hash = readRealFile(akaFile!!)
+                    queue.remove(akaFile!!)
                     checker[akaFile!!] = true
                 }
 
-                println("consumed file " + akaFile!!.name + '.' + akaFile!!.type)
+                println("consumed file ${akaFile!!.fullName} with hash $hash")
                 Thread.sleep((akaFile!!.size * 7).toLong())
             }
         }
