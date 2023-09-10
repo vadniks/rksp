@@ -4,6 +4,8 @@ import java.lang.System.currentTimeMillis
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Paths
+import kotlin.experimental.and
+import kotlin.experimental.xor
 import kotlin.math.round
 
 object P2T1 {
@@ -149,8 +151,45 @@ object P2T2 {
     }
 }
 
+object P2T3 {
+
+    fun run() {
+        val fileName = "some.txt"
+        hashFile(fileName).also {
+            print("hash of a $fileName file: $it (")
+
+            for (i in (Byte.SIZE_BITS * Short.SIZE_BYTES - 1) downTo 0)
+                print('0' + ((it.toInt() shr i) and 1))
+
+            println(")")
+        }
+    }
+
+    fun hashFile(fileName: String): Short {
+        assert(Short.SIZE_BITS == 16)
+        var hash: Short = 0
+        val chunkSize = 100
+
+        RandomAccessFile(fileName, "r").channel.use {
+            var size = 0
+            val buffer = ByteBuffer.allocate(chunkSize)
+
+            while (size <= it.size()) {
+                it.read(buffer)
+                size += chunkSize
+
+                for (i in buffer.array())
+                    hash = ((Short.SIZE_BITS - 1) * hash + (i.toInt() and 0xff)).toShort()
+            }
+        }
+
+        return hash
+    }
+}
+
 fun main() {
 //    P2T1.run()
-    P2T2.run()
+//    P2T2.run()
+    P2T3.run()
 }
 
