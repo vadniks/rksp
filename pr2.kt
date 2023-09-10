@@ -5,11 +5,8 @@ import java.nio.ByteBuffer
 import java.nio.file.*
 import java.nio.file.StandardWatchEventKinds.*
 import java.util.*
-import java.util.stream.Collectors
-import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.io.path.name
-import kotlin.io.path.readLines
 import kotlin.math.round
 import kotlin.random.Random
 
@@ -170,21 +167,26 @@ object P2T3 {
         }
     }
 
+    fun hash(prev: Short, byte: Byte): Short {
+        println("@ ${byte.toInt()}")
+        return ((Short.SIZE_BITS - 1) * prev + (byte.toInt() and 0xff)).toShort()
+    }
+
     fun hashFile(fileName: String): Short {
         assert(Short.SIZE_BITS == 16)
         var hash: Short = 0
         val chunkSize = 100
 
-        RandomAccessFile(fileName, "r").channel.use {
-            var size = 0
-            val buffer = ByteBuffer.allocate(chunkSize)
+        var size = 0
+        val buffer = ByteBuffer.allocate(chunkSize)
 
+        RandomAccessFile(fileName, "r").channel.use {
             while (size <= it.size()) {
-                it.read(buffer)
+                val readCount = it.read(buffer)
                 size += chunkSize
 
-                for (i in buffer.array())
-                    hash = ((Short.SIZE_BITS - 1) * hash + (i.toInt() and 0xff)).toShort()
+                for (i in 0..readCount)
+                    hash = hash(hash, buffer.get(i))
             }
         }
 
@@ -230,11 +232,29 @@ object P2T4 {
                     println("\tdeleted line $it")
             }
             texts[name] = lines
+
+            println("\thash " + P2T3.hashFile(dirFile.name + '/' + file.name))
         }
 
         fun onFileDeleted(path: Path) {
             val name = path.fileName.toString()
             println("$name file deleted")
+            if (!texts.containsKey(name)) return
+
+            var hash: Short = 0
+            val lines = texts[name]!!
+
+            for ((count, i) in lines.withIndex()) {
+                for (j in i)
+                    hash = P2T3.hash(hash, j.code.toByte())
+
+                if (count < lines.size - 1)
+                    hash = P2T3.hash(hash, '\n'.code.toByte())
+            }
+            hash = P2T3.hash(hash, 0.toByte())
+
+            texts.remove(name)
+            println("\thash $hash")
         }
 
         fun <T> processEvent(kind: WatchEvent.Kind<T>, context: Any?) {
@@ -257,16 +277,19 @@ object P2T4 {
                 ?.takeIf { it.isNotEmpty() } ?: return)[0])
         }
 
-        Thread {
-            while (currentTimeMillis() - startedAt < timeout / 4) {
-                when (Random.nextInt(0, 3)) {
-                    0 -> File(dirName, Random.nextInt().toString()).createNewFile()
-                    1 -> processFileIfCan { writeText(Random.nextInt().toString()) }
-                    else -> processFileIfCan { delete() }
+        @Deprecated("test only")
+        fun test() {
+            Thread {
+                while (currentTimeMillis() - startedAt < timeout / 4) {
+                    when (Random.nextInt(0, 3)) {
+                        0 -> File(dirName, Random.nextInt().toString()).createNewFile()
+                        1 -> processFileIfCan { writeText(Random.nextInt().toString()) }
+                        else -> processFileIfCan { delete() }
+                    }
+                    Thread.sleep(1000)
                 }
-                Thread.sleep(1000)
-            }
-        }//.start()
+            }.start()
+        }
 
         Paths.get(dirName).also { dirPath ->
             if (!Files.isDirectory(dirPath))
