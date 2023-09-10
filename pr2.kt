@@ -196,6 +196,7 @@ object P2T4 {
     fun run() {
         val dirName = "watched"
         val timeout = 60_000 * 2
+        val dirFile = File(dirName)
 
         val startedAt = currentTimeMillis()
 
@@ -203,7 +204,8 @@ object P2T4 {
 
         fun onFileModified(path: Path) {
             val name = path.fileName.toString()
-            println("$name file modified ${path.toFile().exists()}")
+            val file = dirFile.listFiles()?.find { it.name == name }
+            println("$name file modified ${if (file != null) "exists" else "not exists"} ${path.toFile().exists()}")
         }
 
         fun onFileDeleted(path: Path) {
