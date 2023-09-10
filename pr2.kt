@@ -4,9 +4,13 @@ import java.lang.System.currentTimeMillis
 import java.nio.ByteBuffer
 import java.nio.file.*
 import java.nio.file.StandardWatchEventKinds.*
-import kotlin.experimental.and
-import kotlin.experimental.xor
+import java.util.*
+import java.util.stream.Collectors
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
+import kotlin.io.path.readLines
 import kotlin.math.round
+import kotlin.random.Random
 
 object P2T1 {
 
@@ -191,16 +195,20 @@ object P2T4 {
 
     fun run() {
         val dirName = "watched"
-        val timeout = 60_000
+        val timeout = 60_000 * 2
 
         val startedAt = currentTimeMillis()
 
-        fun onFileModified(path: Path) {
+        fun onFileCreated(path: Path) { println("${path.fileName} file created") }
 
+        fun onFileModified(path: Path) {
+            val name = path.fileName.toString()
+            println("$name file modified ${path.toFile().exists()}")
         }
 
         fun onFileDeleted(path: Path) {
-
+            val name = path.fileName.toString()
+            println("$name file deleted")
         }
 
         fun <T> processEvent(kind: WatchEvent.Kind<T>, context: Any?) {
@@ -211,11 +219,28 @@ object P2T4 {
             if (context == null) return
 
             when (kind) {
-                ENTRY_CREATE -> println("${context.fileName} file created")
+                ENTRY_CREATE -> onFileCreated(context)
                 ENTRY_MODIFY -> onFileModified(context)
                 ENTRY_DELETE -> onFileDeleted(context)
             }
         }
+
+        fun processFileIfCan(action: File.() -> Unit) {
+            action((File(dirName)
+                .listFiles()
+                ?.takeIf { it.isNotEmpty() } ?: return)[0])
+        }
+
+        Thread {
+            while (currentTimeMillis() - startedAt < timeout / 4) {
+                when (Random.nextInt(0, 3)) {
+                    0 -> File(dirName, Random.nextInt().toString()).createNewFile()
+                    1 -> processFileIfCan { writeText(Random.nextInt().toString()) }
+                    else -> processFileIfCan { delete() }
+                }
+                Thread.sleep(1000)
+            }
+        }.start()
 
         Paths.get(dirName).also { dirPath ->
             if (!Files.isDirectory(dirPath))
@@ -227,10 +252,17 @@ object P2T4 {
                 while (currentTimeMillis() - startedAt < timeout) {
                     val key = watchService.poll() ?: continue
 
-                    for (event in key.pollEvents())
-                        processEvent(event.kind(), event.context())
+                    @Suppress("UNCHECKED_CAST")
+                    val queue = ArrayDeque<WatchEvent<*>>() as Queue<WatchEvent<*>>
 
+                    for (event in key.pollEvents())
+                        queue.add(event)
                     key.reset()
+
+                    var event: WatchEvent<*>?
+                    while (queue.poll().also { event = it } != null) {
+                        processEvent(event!!.kind(), event!!.context())
+                    }
                 }
             }
         }
