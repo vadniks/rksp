@@ -8,6 +8,7 @@ import java.util.*
 import java.util.stream.Collectors
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.io.path.name
 import kotlin.io.path.readLines
 import kotlin.math.round
 import kotlin.random.Random
@@ -200,12 +201,35 @@ object P2T4 {
 
         val startedAt = currentTimeMillis()
 
+        val texts = HashMap<String, List<String>>()
+
         fun onFileCreated(path: Path) { println("${path.fileName} file created") }
 
         fun onFileModified(path: Path) {
             val name = path.fileName.toString()
-            val file = dirFile.listFiles()?.find { it.name == name }
-            println("$name file modified ${if (file != null) "exists" else "not exists"} ${path.toFile().exists()}")
+            val file = File(dirFile, path.name)
+            if (!file.exists()) return
+            val lines = file.readLines()
+
+            println("$name file modified")
+
+            if (!texts.containsKey(name)) {
+                texts[name] = lines
+                lines.forEach { println("\tadded line $it") }
+                return
+            }
+
+            val existed = texts[name]!!
+
+            lines.forEach {
+                if (!existed.contains(it))
+                    println("\tadded line $it")
+            }
+            existed.forEach {
+                if (!lines.contains(it))
+                    println("\tdeleted line $it")
+            }
+            texts[name] = lines
         }
 
         fun onFileDeleted(path: Path) {
@@ -242,7 +266,7 @@ object P2T4 {
                 }
                 Thread.sleep(1000)
             }
-        }.start()
+        }//.start()
 
         Paths.get(dirName).also { dirPath ->
             if (!Files.isDirectory(dirPath))
@@ -254,17 +278,9 @@ object P2T4 {
                 while (currentTimeMillis() - startedAt < timeout) {
                     val key = watchService.poll() ?: continue
 
-                    @Suppress("UNCHECKED_CAST")
-                    val queue = ArrayDeque<WatchEvent<*>>() as Queue<WatchEvent<*>>
-
                     for (event in key.pollEvents())
-                        queue.add(event)
+                        processEvent(event.kind(), event.context())
                     key.reset()
-
-                    var event: WatchEvent<*>?
-                    while (queue.poll().also { event = it } != null) {
-                        processEvent(event!!.kind(), event!!.context())
-                    }
                 }
             }
         }
