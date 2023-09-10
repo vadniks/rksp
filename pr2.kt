@@ -168,7 +168,6 @@ object P2T3 {
     }
 
     fun hash(prev: Short, byte: Byte): Short {
-        println("@ ${byte.toInt()}")
         return ((Short.SIZE_BITS - 1) * prev + (byte.toInt() and 0xff)).toShort()
     }
 
@@ -210,6 +209,7 @@ object P2T4 {
         fun onFileModified(path: Path) {
             val name = path.fileName.toString()
             val file = File(dirFile, path.name)
+
             if (!file.exists()) return
             val lines = file.readLines()
 
@@ -233,28 +233,32 @@ object P2T4 {
             }
             texts[name] = lines
 
-            println("\thash " + P2T3.hashFile(dirFile.name + '/' + file.name))
+            println("\thash " + P2T3.hashFile(dirFile.name + '/' + file.name) + ", size " + Files.size(Paths.get(file.toURI())))
         }
 
         fun onFileDeleted(path: Path) {
             val name = path.fileName.toString()
             println("$name file deleted")
-            if (!texts.containsKey(name)) return
+            if (!texts.containsKey(name)) {
+                println("\tno data")
+                return
+            }
 
             var hash: Short = 0
             val lines = texts[name]!!
+            var size = 0
 
             for ((count, i) in lines.withIndex()) {
                 for (j in i)
-                    hash = P2T3.hash(hash, j.code.toByte())
+                    hash = P2T3.hash(hash, j.code.toByte()).also { size++ }
 
                 if (count < lines.size - 1)
-                    hash = P2T3.hash(hash, '\n'.code.toByte())
+                    hash = P2T3.hash(hash, '\n'.code.toByte()).also { size++ }
             }
-            hash = P2T3.hash(hash, 0.toByte())
+            hash = P2T3.hash(hash, 0.toByte()).also { size++ }
 
             texts.remove(name)
-            println("\thash $hash")
+            println("\thash $hash, size ${if (size > 0) size - 1 else 0}")
         }
 
         fun <T> processEvent(kind: WatchEvent.Kind<T>, context: Any?) {
