@@ -2,8 +2,8 @@ import org.apache.commons.io.FileUtils
 import java.io.*
 import java.lang.System.currentTimeMillis
 import java.nio.ByteBuffer
-import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.file.*
+import java.nio.file.StandardWatchEventKinds.*
 import kotlin.experimental.and
 import kotlin.experimental.xor
 import kotlin.math.round
@@ -187,9 +187,60 @@ object P2T3 {
     }
 }
 
+object P2T4 {
+
+    fun run() {
+        val dirName = "watched"
+        val timeout = 60_000
+
+        val startedAt = currentTimeMillis()
+
+        fun onFileModified(path: Path) {
+
+        }
+
+        fun onFileDeleted(path: Path) {
+
+        }
+
+        fun <T> processEvent(kind: WatchEvent.Kind<T>, context: Any?) {
+            if (kind.type().name != Path::class.java.name)
+                throw IllegalStateException()
+
+            context as Path?
+            if (context == null) return
+
+            when (kind) {
+                ENTRY_CREATE -> println("${context.fileName} file created")
+                ENTRY_MODIFY -> onFileModified(context)
+                ENTRY_DELETE -> onFileDeleted(context)
+            }
+        }
+
+        Paths.get(dirName).also { dirPath ->
+            if (!Files.isDirectory(dirPath))
+                Files.createDirectory(dirPath)
+
+            FileSystems.getDefault().newWatchService().also { watchService ->
+                dirPath.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)
+
+                while (currentTimeMillis() - startedAt < timeout) {
+                    val key = watchService.poll() ?: continue
+
+                    for (event in key.pollEvents())
+                        processEvent(event.kind(), event.context())
+
+                    key.reset()
+                }
+            }
+        }
+    }
+}
+
 fun main() {
 //    P2T1.run()
 //    P2T2.run()
-    P2T3.run()
+//    P2T3.run()
+    P2T4.run()
 }
 
