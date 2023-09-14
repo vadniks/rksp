@@ -74,18 +74,31 @@ object P3T1 {
 object P3T2 {
 
     fun run() {
+        t211()
+    }
+
+    private inline fun generated(crossinline block: Flowable<Int>.() -> Unit) {
         var count = 0
-        Flowable.generate<Int> {
+
+        @Suppress("ReactiveStreamsUnusedPublisher")
+        block(Flowable.generate {
             if (count++ < 1000)
                 it.onNext(Random.nextInt(0, 1001).also { i -> print("$i ") })
             else
                 it.onComplete()
-        }.map { it * it }.forEach { println(it) }.dispose()
+        })
+
+        println("\n")
     }
+
+    private val Flowable<Int>.printed get() = forEach { println(it) }.dispose()
+
+    private fun t211() = generated { map { it * it }.printed }
+    private fun t212() = generated { map { it > 500 } }
 }
 
 fun main() {
 //    P3T1.run()
-//    P3T2.run()
+    P3T2.run()
 }
 
