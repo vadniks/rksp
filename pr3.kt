@@ -1,3 +1,4 @@
+import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.ObservableEmitter
 import io.reactivex.rxjava3.core.Observer
@@ -70,7 +71,21 @@ object P3T1 {
     }
 }
 
+object P3T2 {
+
+    fun run() {
+        var count = 0
+        Flowable.generate<Int> {
+            if (count++ < 1000)
+                it.onNext(Random.nextInt(0, 1001).also { i -> print("$i ") })
+            else
+                it.onComplete()
+        }.map { it * it }.forEach { println(it) }.dispose()
+    }
+}
+
 fun main() {
-    P3T1.run()
+//    P3T1.run()
+//    P3T2.run()
 }
 
