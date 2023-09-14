@@ -1,3 +1,4 @@
+import P3T2.printed
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.ObservableEmitter
@@ -75,15 +76,17 @@ object P3T2 {
 
     fun run() {
         t211()
+//        t212()
+        t213()
     }
 
-    private inline fun generated(crossinline block: Flowable<Int>.() -> Unit) {
+    private inline fun Int.generated(crossinline block: Flowable<Int>.() -> Unit) {
         var count = 0
 
         @Suppress("ReactiveStreamsUnusedPublisher")
         block(Flowable.generate {
-            if (count++ < 1000)
-                it.onNext(Random.nextInt(0, 1001).also { i -> print("$i ") })
+            if (count++ < this)
+                it.onNext(Random.nextInt(0, 1001))
             else
                 it.onComplete()
         })
@@ -93,8 +96,13 @@ object P3T2 {
 
     private val Flowable<Int>.printed get() = forEach { println(it) }.dispose()
 
-    private fun t211() = generated { map { it * it }.printed }
-    private fun t212() = generated { map { it > 500 } }
+    private fun t211() = 1000.generated { map { it * it }.printed }
+    private fun t212() = 1000.generated { filter { it > 500 }.printed }
+    private fun t213() = Random.nextInt(0, 1000).also { print("$it ") }.generated { println(count().blockingGet()) }
+
+    private fun t221() {
+        
+    }
 }
 
 fun main() {
