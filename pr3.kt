@@ -1,10 +1,8 @@
 
 import io.reactivex.rxjava3.core.*
 import io.reactivex.rxjava3.disposables.Disposable
-import io.reactivex.rxjava3.functions.Consumer
-import io.reactivex.rxjava3.functions.Function
 import io.reactivex.rxjava3.schedulers.Schedulers
-import org.reactivestreams.Publisher
+import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -111,12 +109,17 @@ object P3T2 {
 
     private fun t221() {
         val size = 10
-        val chars = Array(size) { Pair(Char::class, 'a') }
-        val ints = Array(size) { Pair(Int::class, 0) }
 
-        for (i in 0 until size) {
-            chars[i] = Pair(Char::class, /*Random.nextInt('a'.code, 'z'.code)*/('a'.code + i).toChar())
-            ints[i] = Pair(Int::class, i/*Random.nextInt(0, 100)*/)
+        val chars = Observable.create<Pair<KClass<*>, Any>> {
+            for (i in 0 until size)
+                it.onNext(Pair(Char::class, ('a'.code + i).toChar()))
+            it.onComplete()
+        }
+
+        val ints = Observable.create<Pair<KClass<*>, Any>> {
+            for (i in 0 until size)
+                it.onNext(Pair(Int::class, i))
+            it.onComplete()
         }
 
         val executor = Executors.newSingleThreadExecutor()
@@ -126,32 +129,55 @@ object P3T2 {
         val t2 = Schedulers.newThread()
         val t3 = Schedulers.from(executor)
 
-        val queueA = ArrayDeque<Char>()
-        val queueB = ArrayDeque<Int>()
+        val charsQueue = ArrayDeque<Char>()
+        val intsQueue = ArrayDeque<Int>()
         val which = AtomicBoolean(false)
 
-        Observable.merge<Pair<KClass<*>, Any>>(
-            Observable.fromArray(*chars).subscribeOn(t1).observeOn(t3),
-            Observable.fromArray(*ints).subscribeOn(t2).observeOn(t3)
-        ).observeOn(t3).doOnComplete { t3.shutdown() }.subscribe { item ->
-            if (item.first == Char::class) queueA.addLast(item.second as Char)
-            else queueB.addLast(item.second as Int)
+        val result = PublishSubject.create<Pair<KClass<*>, Any>>()
+        result.observeOn(Schedulers.newThread()).subscribe {
+            if (it.first == Char::class) println(it.second as Char)
+            else println(it.second as Int)
+        }
 
+        fun divide() {
             if (!which.get()) {
                 var next: Char?
-                if (queueA.removeFirstOrNull().also { next = it } != null)
+                if (charsQueue.removeFirstOrNull().also { next = it } != null) {
+//                    result.onNext(Pair(Char::class, next!! as Any))
                     println(next)
-                else
-                    return@subscribe
+                } else {
+                    println("|1| " + intsQueue.size)
+                    return
+                }
                 which.set(true)
             } else {
                 var next: Int?
-                if (queueB.removeFirstOrNull().also { next = it } != null)
-                    println("\t" + next)
-                else
-                    return@subscribe
+                if (intsQueue.removeFirstOrNull().also { next = it } != null) {
+//                    result.onNext(Pair(Int::class, next!! as Any))
+                    println(next)
+                } else {
+                    println("|2| " + charsQueue.size)
+                    return
+                }
                 which.set(false)
             }
+        }
+
+        fun onComplete() {
+            println("@")
+            for (i in 0 until charsQueue.size + intsQueue.size)
+                divide()
+            t3.shutdown()
+        }
+
+        Observable.merge(
+            chars.subscribeOn(t1).observeOn(t3),
+            ints.subscribeOn(t2).observeOn(t3)
+        ).observeOn(t3).doOnComplete { onComplete() }.subscribe { item ->
+            if (item.first == Char::class) charsQueue.addLast(item.second as Char)
+            else intsQueue.addLast(item.second as Int)
+
+            divide()
         }
 
         executor.awaitTermination(10, TimeUnit.SECONDS)
