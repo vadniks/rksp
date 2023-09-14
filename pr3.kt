@@ -1,10 +1,10 @@
-import P3T2.printed
-import io.reactivex.rxjava3.core.Flowable
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.core.ObservableEmitter
-import io.reactivex.rxjava3.core.Observer
+
+import io.reactivex.rxjava3.core.*
 import io.reactivex.rxjava3.disposables.Disposable
+import io.reactivex.rxjava3.functions.Consumer
 import io.reactivex.rxjava3.schedulers.Schedulers
+import org.reactivestreams.Publisher
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
 
@@ -73,20 +73,22 @@ object P3T1 {
 }
 
 object P3T2 {
+    private const val size = 1000
 
     fun run() {
-        t211()
+//        t211()
 //        t212()
-        t213()
+//        t213()
+        t221()
     }
 
-    private inline fun Int.generated(crossinline block: Flowable<Int>.() -> Unit) {
+    private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
         var count = 0
 
         @Suppress("ReactiveStreamsUnusedPublisher")
         block(Flowable.generate {
             if (count++ < this)
-                it.onNext(Random.nextInt(0, 1001))
+                it.onNext(random())
             else
                 it.onComplete()
         })
@@ -95,13 +97,42 @@ object P3T2 {
     }
 
     private val Flowable<Int>.printed get() = forEach { println(it) }.dispose()
+    private val intRandom: () -> Int get() = { Random.nextInt(0, 1001) }
 
-    private fun t211() = 1000.generated { map { it * it }.printed }
-    private fun t212() = 1000.generated { filter { it > 500 }.printed }
-    private fun t213() = Random.nextInt(0, 1000).also { print("$it ") }.generated { println(count().blockingGet()) }
+    private fun t211() = size.generated(intRandom) { map { it * it }.printed }
+    private fun t212() = size.generated(intRandom) { filter { it > 500 }.printed }
+
+    private fun t213() = Random.nextInt(0, size)
+        .also { print("$it ") }
+        .generated(intRandom) { println(count().blockingGet()) }
 
     private fun t221() {
-        
+        val t1 = Schedulers.newThread()
+        val t2 = Schedulers.newThread()
+
+        var c1 = 0
+        var c2 = 10
+
+        Flowable.merge(
+            Flowable.generate<Int> {
+                Thread.sleep(10)
+                if (c1 < 10)
+                    it.onNext(c1++)
+                else
+                    it.onComplete()
+            }.subscribeOn(t1),
+            Flowable.generate<Int> {
+                Thread.sleep(10)
+                if (c2 < 20)
+                    it.onNext(c2++)
+                else
+                    it.onComplete()
+            }.subscribeOn(t2)
+        ).subscribe {
+            println(it)
+        }
+
+        Executors.newCachedThreadPool().submit {  }
     }
 }
 
