@@ -11,7 +11,7 @@ object P3T1 {
     fun run() {
         data class Event(val which: Boolean, val value: Int)
 
-        var stopped = AtomicBoolean(false)
+        val stopped = AtomicBoolean(false)
 
         val observer = object : Observer<Event> {
             override fun onSubscribe(d: Disposable) = Unit
@@ -73,3 +73,4 @@ object P3T1 {
 fun main() {
     P3T1.run()
 }
+
