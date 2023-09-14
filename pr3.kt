@@ -133,54 +133,52 @@ object P3T2 {
         val intsQueue = ArrayDeque<Int>()
         val which = AtomicBoolean(false)
 
+        var gatheredSize = 0
+        var emittedCount = 0
+
         val result = PublishSubject.create<Pair<KClass<*>, Any>>()
         result.observeOn(Schedulers.newThread()).subscribe {
-            if (it.first == Char::class) println(it.second as Char)
+            if (it.first == Char::class) println("\t" + it.second as Char)
             else println(it.second as Int)
+
+            if (++emittedCount >= gatheredSize)
+                executor.shutdown()
         }
 
         fun divide() {
             if (!which.get()) {
                 var next: Char?
-                if (charsQueue.removeFirstOrNull().also { next = it } != null) {
-//                    result.onNext(Pair(Char::class, next!! as Any))
-                    println(next)
-                } else {
-                    println("|1| " + intsQueue.size)
+                if (charsQueue.removeFirstOrNull().also { next = it } != null)
+                    result.onNext(Pair(Char::class, next!! as Any))
+                else
                     return
-                }
                 which.set(true)
             } else {
                 var next: Int?
-                if (intsQueue.removeFirstOrNull().also { next = it } != null) {
-//                    result.onNext(Pair(Int::class, next!! as Any))
-                    println(next)
-                } else {
-                    println("|2| " + charsQueue.size)
+                if (intsQueue.removeFirstOrNull().also { next = it } != null)
+                    result.onNext(Pair(Int::class, next!! as Any))
+                else
                     return
-                }
                 which.set(false)
             }
         }
 
         fun onComplete() {
-            println("@")
             for (i in 0 until charsQueue.size + intsQueue.size)
                 divide()
-            t3.shutdown()
         }
 
         Observable.merge(
             chars.subscribeOn(t1).observeOn(t3),
             ints.subscribeOn(t2).observeOn(t3)
         ).observeOn(t3).doOnComplete { onComplete() }.subscribe { item ->
+            gatheredSize++
+
             if (item.first == Char::class) charsQueue.addLast(item.second as Char)
             else intsQueue.addLast(item.second as Int)
 
             divide()
         }
-
-        executor.awaitTermination(10, TimeUnit.SECONDS)
     }
 }
 
