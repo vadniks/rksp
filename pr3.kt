@@ -1,13 +1,13 @@
 
 import io.reactivex.rxjava3.core.*
 import io.reactivex.rxjava3.disposables.Disposable
-import io.reactivex.rxjava3.functions.BiFunction
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.Consumer
 import kotlin.random.Random
 
 private object T1 {
@@ -318,17 +318,49 @@ private object T3 {
                 if (friend.userId == userId)
                     result.onNext(friend)
         result.onComplete()
+    }
+}
 
-//        friends.also { println() }
-//            .withLatestFrom(userIds) { userFriend, userId -> userFriend to userId }
-//            .filter { it.first.userId == it.second }.flatMap {  }
-//            .forEach { println(it.first.userId) }
+private object T4 {
+    enum class FileType(val type: Int) { XML(0), JSON(1), XLS(2) }
+    data class AkaFile(val type: FileType, val size: Int)
+
+    fun run() {
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {}
+
+        val generated = AtomicInteger(0)
+        val maxGenerated = 10
+        val consumed = AtomicInteger(0)
+
+        val generator = Observable.generate<AkaFile> {
+            if (generated.getAndIncrement() < maxGenerated)
+                it.onNext(AkaFile(
+                    FileType.values()[Random.nextInt(0, 3)],
+                    Random.nextInt(10, 101)
+                ).also { generated -> println("generated: $generated") })
+            else
+                it.onComplete()
+            
+            Thread.sleep(10)
+        }.subscribeOn(Schedulers.newThread())
+
+        fun AkaFile.process(type: FileType) {
+            if (this.type == type) Thread.sleep(size * 7L)
+            println("consumed: $this")
+
+            if (consumed.incrementAndGet() >= maxGenerated) executor.shutdown()
+        }
+
+        for (i in 0..2)
+            generator.observeOn(Schedulers.newThread()).subscribe { it.process(FileType.values()[i]) }
     }
 }
 
 private fun main() {
 //    T1.run()
 //    T2.run()
-    T3.run()
+//    T3.run()
+    T4.run()
 }
 
