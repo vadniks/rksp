@@ -79,7 +79,9 @@ object P3T2 {
 //        t211()
 //        t212()
 //        t213()
-        t221()
+//        t221()
+//        t222()
+        t223()
     }
 
     private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
@@ -111,13 +113,13 @@ object P3T2 {
 
         val chars = Observable.create<Pair<KClass<*>, Any>> {
             for (i in 0 until size)
-                it.onNext(Pair(Char::class, Random.nextInt('a'.code, 'z'.code).toChar()))
+                it.onNext(Pair(Char::class, /*Random.nextInt('a'.code, 'z'.code)*/('a'.code + i).toChar()))
             it.onComplete()
         }
 
         val ints = Observable.create<Pair<KClass<*>, Any>> {
             for (i in 0 until size)
-                it.onNext(Pair(Int::class, Random.nextInt()))
+                it.onNext(Pair(Int::class, i/*Random.nextInt()*/))
             it.onComplete()
         }
 
@@ -137,7 +139,7 @@ object P3T2 {
 
         val result = PublishSubject.create<Pair<KClass<*>, Any>>()
         result.observeOn(Schedulers.newThread()).subscribe {
-            if (it.first == Char::class) println("\t" + it.second as Char)
+            if (it.first == Char::class) print("" + (it.second as Char))
             else println(it.second as Int)
 
             if (++emittedCount >= gatheredSize)
@@ -178,6 +180,28 @@ object P3T2 {
 
             divide()
         }
+    }
+
+    private fun t222() {
+        val size = 10
+        val array1 = Array(size) { 0 }
+        val array2 = Array(size) { 0 }
+
+        for (i in 0 until size) {
+            array1[i] = Random.nextInt()
+            array2[i] = Random.nextInt()
+        }
+
+        Flowable.concat(
+            Flowable.fromArray(*array1),
+            Flowable.fromArray(*array2)
+        ).subscribe {
+            println(it)
+        }
+    }
+
+    private fun t223() {
+
     }
 }
 
