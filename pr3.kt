@@ -81,10 +81,12 @@ object P3T2 {
 //        t211()
 //        t212()
 //        t213()
-        t221()
+//        t221()
 //        t222()
 //        t223()
 //        t231()
+//        t232()
+        t233()
     }
 
     private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
@@ -246,6 +248,20 @@ object P3T2 {
         Flowable
             .fromArray(*(1..count).map { Random.nextInt() }.toTypedArray())
             .takeLast(count - 3)
+            .subscribe { println(it) }
+    }
+
+    private fun t232() = 10.also { count ->
+        Flowable
+            .fromArray(*(1..count).map { Random.nextInt() }.toTypedArray())
+            .take(5)
+            .subscribe { println(it) }
+    }
+
+    private fun t233() = 10.also { count ->
+        Flowable
+            .fromArray(*(1..count).map { Random.nextInt() }.toTypedArray())
+            .takeLast(1)
             .subscribe { println(it) }
     }
 }
