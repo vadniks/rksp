@@ -115,7 +115,10 @@ object P3T2 {
             Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { true to (Random.nextInt() as Any) },
             Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { false to (Random.nextInt(50, 100).toChar() as Any) }
         ).subscribeOn(Schedulers.io()).observeOn(Schedulers.from(executor)).doOnComplete { executor.shutdown() }.subscribe {
-            println(if (it.first) it.second as Int else it.second as Char)
+            if (it.first)
+                println(it.second as Int)
+            else
+                print(it.second as Char)
         }
     }
 
