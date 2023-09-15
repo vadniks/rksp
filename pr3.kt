@@ -6,7 +6,6 @@ import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
-import kotlin.reflect.KClass
 
 object P3T1 {
 
@@ -109,77 +108,7 @@ object P3T2 {
         .generated(intRandom) { println(count().blockingGet()) }
 
     private fun t221() {
-        val size = 1000
 
-        val chars = Observable.create<Pair<KClass<*>, Any>> {
-            for (i in 0 until size)
-                it.onNext(Pair(Char::class, /*Random.nextInt('a'.code, 'z'.code)*/('a'.code + i).toChar()))
-            it.onComplete()
-        }
-
-        val ints = Observable.create<Pair<KClass<*>, Any>> {
-            for (i in 0 until size)
-                it.onNext(Pair(Int::class, i/*Random.nextInt()*/))
-            it.onComplete()
-        }
-
-        val executor = Executors.newSingleThreadExecutor()
-        executor.submit {}
-
-        val t1 = Schedulers.newThread()
-        val t2 = Schedulers.newThread()
-        val t3 = Schedulers.from(executor)
-
-        val charsQueue = ArrayDeque<Char>()
-        val intsQueue = ArrayDeque<Int>()
-        val which = AtomicBoolean(false)
-
-        var gatheredSize = 0
-        var emittedCount = 0
-
-        val result = PublishSubject.create<Pair<KClass<*>, Any>>()
-        result.observeOn(Schedulers.newThread()).subscribe {
-            if (it.first == Char::class) print("" + (it.second as Char))
-            else println(it.second as Int)
-
-            if (++emittedCount >= gatheredSize)
-                executor.shutdown()
-        }
-
-        fun divide() {
-            if (!which.get()) {
-                var next: Char?
-                if (charsQueue.removeFirstOrNull().also { next = it } != null)
-                    result.onNext(Pair(Char::class, next!! as Any))
-                else
-                    return
-                which.set(true)
-            } else {
-                var next: Int?
-                if (intsQueue.removeFirstOrNull().also { next = it } != null)
-                    result.onNext(Pair(Int::class, next!! as Any))
-                else
-                    return
-                which.set(false)
-            }
-        }
-
-        fun onComplete() {
-            for (i in 0 until charsQueue.size + intsQueue.size)
-                divide()
-        }
-
-        Observable.merge(
-            chars.subscribeOn(t1).observeOn(t3),
-            ints.subscribeOn(t2).observeOn(t3)
-        ).observeOn(t3).doOnComplete { onComplete() }.subscribe { item ->
-            gatheredSize++
-
-            if (item.first == Char::class) charsQueue.addLast(item.second as Char)
-            else intsQueue.addLast(item.second as Int)
-
-            divide()
-        }
     }
 
     private fun t222() {
@@ -201,7 +130,73 @@ object P3T2 {
     }
 
     private fun t223() {
+        val stream1 = Observable.create<Pair<Boolean, Int>> {
+            for (i in 0 until size)
+                it.onNext(false to Random.nextInt())
+            it.onComplete()
+        }
 
+        val stream2 = Observable.create<Pair<Boolean, Int>> {
+            for (i in 0 until size)
+                it.onNext(true to Random.nextInt())
+            it.onComplete()
+        }
+
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {}
+
+        val t1 = Schedulers.newThread()
+        val t2 = Schedulers.newThread()
+        val t3 = Schedulers.from(executor)
+
+        val queue1 = ArrayDeque<Int>()
+        val queue2 = ArrayDeque<Int>()
+        val which = AtomicBoolean(false)
+
+        var gatheredSize = 0
+        var emittedCount = 0
+
+        val result = PublishSubject.create<Int>()
+        result.observeOn(Schedulers.newThread()).subscribe {
+            println(it)
+            if (++emittedCount >= gatheredSize)
+                executor.shutdown()
+        }
+
+        fun divide() {
+            if (!which.get()) {
+                var next: Int?
+                if (queue1.removeFirstOrNull().also { next = it } != null)
+                    result.onNext(next!!)
+                else
+                    return
+                which.set(true)
+            } else {
+                var next: Int?
+                if (queue2.removeFirstOrNull().also { next = it } != null)
+                    result.onNext(next!!)
+                else
+                    return
+                which.set(false)
+            }
+        }
+
+        fun onComplete() {
+            for (i in 0 until queue1.size + queue2.size)
+                divide()
+        }
+
+        Observable.merge(
+            stream1.subscribeOn(t1).observeOn(t3),
+            stream2.subscribeOn(t2).observeOn(t3)
+        ).observeOn(t3).doOnComplete { onComplete() }.subscribe { item ->
+            gatheredSize++
+
+            if (!item.first) queue1.addLast(item.second)
+            else queue2.addLast(item.second)
+
+            divide()
+        }
     }
 }
 
