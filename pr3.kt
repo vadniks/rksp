@@ -1,6 +1,7 @@
 
 import io.reactivex.rxjava3.core.*
 import io.reactivex.rxjava3.disposables.Disposable
+import io.reactivex.rxjava3.functions.Consumer
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
@@ -80,10 +81,10 @@ object P3T2 {
 //        t211()
 //        t212()
 //        t213()
-//        t221()
+        t221()
 //        t222()
 //        t223()
-        t231()
+//        t231()
     }
 
     private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
@@ -110,29 +111,47 @@ object P3T2 {
         .also { print("$it ") }
         .generated(intRandom) { println(count().blockingGet()) }
 
+    @Suppress("ControlFlowWithEmptyBody")
     private fun t221() {
         val executor = Executors.newSingleThreadExecutor()
+        executor.submit {  }
+
+        val count = AtomicInteger(0)
 
         val result = PublishSubject.create<String>()
-        result.subscribe { println(it) }
+        result
+            .observeOn(Schedulers.from(executor))
+            .subscribe {
+                if (count.incrementAndGet() >= size) executor.shutdown()
+                println(it)
+            }
 
         var string = ""
-        var state: Int
+        val conditional = AtomicBoolean(false)
 
-        Flowable.merge(
-            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { true to (Random.nextInt() as Any) },
-            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { false to (Random.nextInt(97, 122).toChar() as Any) }
-        ).subscribeOn(Schedulers.io()).observeOn(Schedulers.from(executor)).doOnComplete { executor.shutdown() }.subscribe {
-            string +=
-                if (it.first) (it.second as Int).also { state = 2 }
-                else (it.second as Char).also { state = 1 }
+        Flowable
+            .interval(10, TimeUnit.MILLISECONDS)
+            .takeWhile { it < size }
+            .map { Random.nextInt('a'.code, 'z'.code).toChar() }
+            .subscribeOn(Schedulers.newThread())
+            .subscribe {
+                while (conditional.get());
+                string += it
+                conditional.set(true)
+            }
 
-            if (state == 2) {
-                state = 0
+        Flowable
+            .interval(10, TimeUnit.MILLISECONDS)
+            .takeWhile { it < size }
+            .map { Random.nextInt() }
+            .subscribeOn(Schedulers.newThread())
+            .subscribe {
+                while (!conditional.get());
+                string += it
                 result.onNext(string)
                 string = ""
+                conditional.set(false)
             }
-        }
     }
 
     private fun t222() {
