@@ -7,7 +7,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.function.Consumer
 import kotlin.random.Random
 
 private object T1 {
@@ -341,7 +340,7 @@ private object T4 {
                 ).also { generated -> println("generated: $generated") })
             else
                 it.onComplete()
-            
+
             Thread.sleep(10)
         }.subscribeOn(Schedulers.newThread())
 
