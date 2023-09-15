@@ -4,7 +4,6 @@ import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
 import kotlin.reflect.KClass
@@ -108,17 +107,17 @@ object P3T2 {
         .generated(intRandom) { println(count().blockingGet()) }
 
     private fun t221() {
-        val size = 10
+        val size = 1000
 
         val chars = Observable.create<Pair<KClass<*>, Any>> {
             for (i in 0 until size)
-                it.onNext(Pair(Char::class, ('a'.code + i).toChar()))
+                it.onNext(Pair(Char::class, Random.nextInt('a'.code, 'z'.code).toChar()))
             it.onComplete()
         }
 
         val ints = Observable.create<Pair<KClass<*>, Any>> {
             for (i in 0 until size)
-                it.onNext(Pair(Int::class, i))
+                it.onNext(Pair(Int::class, Random.nextInt()))
             it.onComplete()
         }
 
