@@ -4,6 +4,7 @@ import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
 
@@ -78,9 +79,9 @@ object P3T2 {
 //        t211()
 //        t212()
 //        t213()
-//        t221()
+        t221()
 //        t222()
-        t223()
+//        t223()
     }
 
     private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
@@ -108,7 +109,14 @@ object P3T2 {
         .generated(intRandom) { println(count().blockingGet()) }
 
     private fun t221() {
+        val executor = Executors.newSingleThreadExecutor()
 
+        Flowable.merge(
+            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < 10 },
+            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < 10 }.map { it * 10 }
+        ).subscribeOn(Schedulers.io()).observeOn(Schedulers.from(executor)).doOnComplete { executor.shutdown() }.subscribe {
+            println(it)
+        }
     }
 
     private fun t222() {
