@@ -128,7 +128,7 @@ private object T2 {
             }
 
         var string = ""
-        val conditional = AtomicBoolean(false)
+        val condition = AtomicBoolean(false)
 
         Flowable
             .interval(10, TimeUnit.MILLISECONDS)
@@ -136,9 +136,9 @@ private object T2 {
             .map { Random.nextInt('a'.code, 'z'.code).toChar() }
             .subscribeOn(Schedulers.newThread())
             .subscribe {
-                while (conditional.get());
+                while (condition.get());
                 string += it
-                conditional.set(true)
+                condition.set(true)
             }
 
         Flowable
@@ -147,11 +147,11 @@ private object T2 {
             .map { Random.nextInt() }
             .subscribeOn(Schedulers.newThread())
             .subscribe {
-                while (!conditional.get());
+                while (!condition.get());
                 string += it
                 result.onNext(string)
                 string = ""
-                conditional.set(false)
+                condition.set(false)
             }
     }
 
@@ -341,7 +341,7 @@ private object T4 {
             else
                 it.onComplete()
 
-            Thread.sleep(10)
+            Thread.sleep(Random.nextLong(100, 1001))
         }.subscribeOn(Schedulers.newThread())
 
         fun AkaFile.process(type: FileType) {
