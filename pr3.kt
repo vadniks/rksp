@@ -6,6 +6,7 @@ import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 object P3T1 {
@@ -79,9 +80,10 @@ object P3T2 {
 //        t211()
 //        t212()
 //        t213()
-        t221()
+//        t221()
 //        t222()
 //        t223()
+        t231()
     }
 
     private inline fun <T : Any> Int.generated(crossinline random: () -> T, crossinline block: Flowable<T>.() -> Unit) {
@@ -111,14 +113,25 @@ object P3T2 {
     private fun t221() {
         val executor = Executors.newSingleThreadExecutor()
 
+        val result = PublishSubject.create<String>()
+        result.subscribe { println(it) }
+
+        var string = ""
+        var state: Int
+
         Flowable.merge(
             Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { true to (Random.nextInt() as Any) },
-            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { false to (Random.nextInt(50, 100).toChar() as Any) }
+            Flowable.interval(10, TimeUnit.MILLISECONDS).takeWhile { it < size }.map { false to (Random.nextInt(97, 122).toChar() as Any) }
         ).subscribeOn(Schedulers.io()).observeOn(Schedulers.from(executor)).doOnComplete { executor.shutdown() }.subscribe {
-            if (it.first)
-                println(it.second as Int)
-            else
-                print(it.second as Char)
+            string +=
+                if (it.first) (it.second as Int).also { state = 2 }
+                else (it.second as Char).also { state = 1 }
+
+            if (state == 2) {
+                state = 0
+                result.onNext(string)
+                string = ""
+            }
         }
     }
 
@@ -208,6 +221,13 @@ object P3T2 {
 
             divide()
         }
+    }
+
+    private fun t231() = 10.also { count ->
+        Flowable
+            .fromArray(*(1..count).map { Random.nextInt() }.toTypedArray())
+            .takeLast(count - 3)
+            .subscribe { println(it) }
     }
 }
 
