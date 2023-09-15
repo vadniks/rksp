@@ -1,7 +1,7 @@
 
 import io.reactivex.rxjava3.core.*
 import io.reactivex.rxjava3.disposables.Disposable
-import io.reactivex.rxjava3.functions.Consumer
+import io.reactivex.rxjava3.functions.BiFunction
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.concurrent.Executors
@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
-object P3T1 {
+private object T1 {
 
     fun run() {
         data class Event(val which: Boolean, val value: Int)
@@ -74,7 +74,7 @@ object P3T1 {
     }
 }
 
-object P3T2 {
+private object T2 {
     private const val size = 1000
 
     fun run() {
@@ -266,8 +266,69 @@ object P3T2 {
     }
 }
 
-fun main() {
-//    P3T1.run()
-    P3T2.run()
+private object T3 {
+    private const val size = 10
+    private val randomInt get() = Random.nextInt(0, size * 2)
+
+    private val friends: Observable<UserFriend> get() =
+        Observable.fromArray(*Array(size * 2) { UserFriend(randomInt.also { print("$it ") }, randomInt) }.also { println() })
+
+    private data class UserFriend(val userId: Int, val friendId: Int)
+
+    private operator fun <T> ArrayList<T>.plusAssign(value: T) { add(value) }
+
+    fun run() {
+        println("userIds")
+        val userIds = Observable.fromArray(*Array(size / 2) { randomInt.also { print("$it ") } })
+        println("\nuserFriends")
+
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {  }
+
+        val executorScheduler = Schedulers.from(executor)
+
+        val friendsList = ArrayList<UserFriend>()
+        val userIdsList = ArrayList<Int>()
+
+        val friendsGathered = AtomicBoolean(false)
+        val userIdsGathered = AtomicBoolean(false)
+
+        friends
+            .subscribeOn(Schedulers.newThread())
+            .observeOn(executorScheduler)
+            .doOnComplete { friendsGathered.set(true) }
+            .subscribe { friendsList += it }
+
+        userIds
+            .subscribeOn(Schedulers.newThread())
+            .observeOn(executorScheduler)
+            .doOnComplete { userIdsGathered.set(true) }
+            .subscribe { userIdsList += it }
+
+        @Suppress("ControlFlowWithEmptyBody")
+        while (!friendsGathered.get() || !userIdsGathered.get());
+        executor.shutdown()
+
+        println()
+        val result = PublishSubject.create<UserFriend>()
+        result.subscribe { println(it.userId) }
+
+        for (friend in friendsList)
+            for (userId in userIdsList)
+                if (friend.userId == userId)
+                    result.onNext(friend)
+        result.onComplete()
+
+//        friends.also { println() }
+//            .withLatestFrom(userIds) { userFriend, userId -> userFriend to userId }
+//            .filter { it.first.userId == it.second }.flatMap {  }
+//            .forEach { println(it.first.userId) }
+    }
+}
+
+private fun main() {
+//    T1.run()
+//    T2.run()
+    T3.run()
 }
 
