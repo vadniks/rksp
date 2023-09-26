@@ -1,15 +1,36 @@
 package com.example.rsoket
 
+import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.springframework.messaging.handler.annotation.MessageMapping
+import org.springframework.messaging.handler.annotation.Payload
+import org.springframework.messaging.rsocket.RSocketRequester
+import org.springframework.messaging.rsocket.annotation.ConnectMapping
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 
 @org.springframework.stereotype.Controller
 class Controller(private val repo: Repository) {
+    private val clients = ArrayList<RSocketRequester>()
 
     private inline fun async(crossinline action: () -> Unit) = runBlocking { launch { action() } }
+
+    @ConnectMapping
+    fun connect(requester: RSocketRequester, @Payload id: Long) = requester.apply {
+        rsocket()!!
+            .onClose()
+            .doFirst { clients.add(requester) }
+            .doFinally { clients.remove(requester) }
+            .subscribe()
+        route("status")
+            .data("open")
+            .send()
+            .subscribe()
+    }
+
+    @PreDestroy
+    fun shutdown() = clients.forEach { it.rsocket().dispose() }
 
     @MessageMapping("getAll") // stream
     fun getComponents() = Flux.create<Message> { emitter ->
@@ -32,11 +53,11 @@ class Controller(private val repo: Repository) {
         Mono.just(Message(false, if (found.isPresent) found.get().serialized else ""))
     }
 
+    @Suppress("CallingSubscribeInNonBlockingScope")
     @MessageMapping("addSeveral") // channel
     fun addComponents(newOnes: Flux<Message>) = Flux.create<Message> { emitter ->
         var index = 0
 
-        @Suppress("ReactiveStreamsUnusedPublisher")
         newOnes
             .map { Component.deserialized(it.payload) }
             .doOnNext {
@@ -44,5 +65,6 @@ class Controller(private val repo: Repository) {
                 emitter.next(Message(true, it.serialized, index++))
             }
             .doOnComplete { emitter.complete() }
+            .subscribe()
     }
 }
