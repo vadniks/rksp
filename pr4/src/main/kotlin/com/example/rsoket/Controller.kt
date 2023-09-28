@@ -16,21 +16,30 @@ class Controller(private val repo: Repository) {
 
     private inline fun async(crossinline action: () -> Unit) = runBlocking { launch { action() } }
 
-    @ConnectMapping
+    @ConnectMapping("connect")
     fun connect(requester: RSocketRequester, @Payload id: Long) = requester.apply {
         rsocket()!!
             .onClose()
-            .doFirst { clients.add(requester) }
-            .doFinally { clients.remove(requester) }
+            .doFirst {
+                println("client $id connected")
+                clients.add(requester)
+            }
+            .doFinally {
+                println("client $id disconnected")
+                clients.remove(requester)
+            }
             .subscribe()
         route("status")
             .data("open")
             .send()
             .subscribe()
-    }
+    }.run {}
 
     @PreDestroy
-    fun shutdown() = clients.forEach { it.rsocket().dispose() }
+    fun shutdown() {
+        println("shutting down...")
+        clients.forEach { it.rsocket()!!.dispose() }
+    }
 
     @MessageMapping("getAll") // stream
     fun getComponents() = Flux.create<Message> { emitter ->

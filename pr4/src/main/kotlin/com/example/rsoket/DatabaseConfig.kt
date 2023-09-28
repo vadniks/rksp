@@ -10,7 +10,9 @@ import org.springframework.orm.hibernate5.HibernateTransactionManager
 import org.springframework.orm.hibernate5.LocalSessionFactoryBean
 import java.util.*
 
-@EnableJpaRepositories(basePackages = ["com.example.rsoket.config"])
+private const val PACKAGE = "com.example.rsoket"
+
+@EnableJpaRepositories(basePackages = [PACKAGE])
 @Configuration
 class DatabaseConfig {
     val dataSource @Bean(name = ["dataSource"]) get() = HikariDataSource(HikariConfig().apply {
@@ -23,9 +25,9 @@ class DatabaseConfig {
     val entityManagerFactory @Bean(name = ["entityManagerFactory"])
     get() = LocalSessionFactoryBean().apply {
             setDataSource(dataSource)
-            setPackagesToScan("com.example.virt3")
+            setPackagesToScan(PACKAGE)
             hibernateProperties = Properties().apply {
-                put("hibernate.dialect", "org.hibernate.dialect.PostgreSQL92Dialect")
+                put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
                 put("hibernate.hbm2ddl.auto", "update")
             }
         }
