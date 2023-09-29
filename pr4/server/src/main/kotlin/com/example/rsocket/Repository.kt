@@ -1,5 +1,5 @@
 
-package com.example.rsoket
+package com.example.rsocket
 
 import org.springframework.beans.factory.config.ConfigurableBeanFactory.SCOPE_SINGLETON
 import org.springframework.context.annotation.Scope

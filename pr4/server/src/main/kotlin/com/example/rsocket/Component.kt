@@ -1,5 +1,5 @@
 
-package com.example.rsoket
+package com.example.rsocket
 
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue

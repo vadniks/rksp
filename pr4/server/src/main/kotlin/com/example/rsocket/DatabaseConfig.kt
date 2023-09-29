@@ -1,5 +1,5 @@
 
-package com.example.rsoket
+package com.example.rsocket
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -10,7 +10,7 @@ import org.springframework.orm.hibernate5.HibernateTransactionManager
 import org.springframework.orm.hibernate5.LocalSessionFactoryBean
 import java.util.*
 
-private const val PACKAGE = "com.example.rsoket"
+private const val PACKAGE = "com.example.rsocket"
 
 @EnableJpaRepositories(basePackages = [PACKAGE])
 @Configuration

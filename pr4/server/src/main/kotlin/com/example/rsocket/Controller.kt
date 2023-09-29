@@ -1,4 +1,4 @@
-package com.example.rsoket
+package com.example.rsocket
 
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.launch

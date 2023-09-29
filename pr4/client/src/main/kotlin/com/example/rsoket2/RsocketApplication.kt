@@ -8,9 +8,10 @@ import org.springframework.messaging.rsocket.*
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
 import reactor.core.Disposable
 import reactor.core.publisher.Flux
+import java.lang.RuntimeException
 
 @SpringBootApplication
-class Rsoket2Application(
+class RsocketApplication(
     private val rsocketRequesterBuilder: RSocketRequester.Builder,
     @Qualifier("rSocketStrategies") private val rsocketStrategies: RSocketStrategies
 ) {
@@ -18,11 +19,19 @@ class Rsoket2Application(
     private val id = System.currentTimeMillis()
     private lateinit var disposable: Disposable
 
+    init {
+        connect()
+        getComponents().forEach { println(it) }
+        disconnect()
+    }
+
+    private fun assert(condition: Boolean) { if (!condition) throw RuntimeException() }
+
     private fun connect() = runBlocking {
         rsocketRequester = rsocketRequesterBuilder
             .setupRoute("connect")
             .setupData(id)
-            .rsocketConnector { it.acceptor(RSocketMessageHandler.responder(rsocketStrategies)) }
+            .rsocketConnector { it.acceptor(RSocketMessageHandler.responder(rsocketStrategies, Any())) }
             .connectTcpAndAwait("localhost", 7000)
 
         rsocketRequester.rsocket()!!
@@ -31,35 +40,36 @@ class Rsoket2Application(
             .subscribe()
     }
 
-    private fun connected() = this::rsocketRequester.isInitialized || rsocketRequester.rsocket().isDisposed
+    private val connected get() = this::rsocketRequester.isInitialized || rsocketRequester.rsocket()!!.isDisposed
 
     private fun stopStreamsAndChannels() {
-        if (!connected() || !this::disposable.isInitialized)
-            return
+        assert(connected && this::disposable.isInitialized)
         println("stopping...")
         disposable.dispose()
     }
 
     private fun disconnect() {
-        if (!connected()) return
+        assert(connected)
         stopStreamsAndChannels()
         rsocketRequester.rsocket()!!.dispose()
         println("disconnected")
     }
 
     private fun getComponents(): List<Component> { // stream
+        assert(connected)
         val components = ArrayList<Component>() // TODO: make payload in Component nullable
-        if (!connected()) return components
 
         disposable = rsocketRequester
             .route("getAll")
             .data(Message(false, ""))
             .retrieveFlux(Message::class.java)
             .subscribe { components.add(Component.deserialized(it.payload)) }
+
+        return components
     }
 
     private fun addComponent(component: Component) { // fire-n-forget
-        if (!connected()) return // TODO: replace with assert
+        assert(connected)
 
         rsocketRequester
             .route("addOne")
@@ -69,7 +79,7 @@ class Rsoket2Application(
     }
 
     private fun getComponent(id: Int): Message { // request-response
-        if (!connected()) return
+        assert(connected)
         return rsocketRequester
             .route("getOne")
             .data(Message(false, id.toString()))
@@ -78,8 +88,7 @@ class Rsoket2Application(
     }
 
     private fun adcComponents(components: List<Component>) { // channel
-        if (!connected()) return
-
+        assert(connected)
         rsocketRequester
             .route("addSeveral")
             .data(Flux.fromIterable(components))
@@ -89,5 +98,5 @@ class Rsoket2Application(
 }
 
 fun main(args: Array<String>) {
-    runApplication<Rsoket2Application>(*args)
+    runApplication<RsocketApplication>(*args)
 }
