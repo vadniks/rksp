@@ -1,5 +1,5 @@
 
-package com.example.rsoket2
+package com.example.rsocket2
 
 data class Message(
     val stream: Boolean,

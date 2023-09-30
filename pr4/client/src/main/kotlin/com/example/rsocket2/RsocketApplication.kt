@@ -1,7 +1,7 @@
 
 @file:Suppress("ControlFlowWithEmptyBody")
 
-package com.example.rsoket2
+package com.example.rsocket2
 
 import kotlinx.coroutines.runBlocking
 import org.springframework.beans.factory.annotation.Qualifier
