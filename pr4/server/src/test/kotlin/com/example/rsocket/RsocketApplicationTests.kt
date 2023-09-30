@@ -2,7 +2,6 @@
 package com.example.rsocket
 
 import kotlinx.coroutines.runBlocking
-import org.aspectj.lang.annotation.After
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
@@ -84,21 +83,32 @@ class RsocketApplicationTests(
             add(Message(true, Component(Component.Type.GPU, "gpu1", 4).serialized, 2))
         }))
         .retrieveFlux(Message::class.java)
-        .doAction {
-            
+        .doAction { result ->
+            fun StepVerifier.Step<Message>.check(xType: Component.Type, xName: String, xIndex: Int) = consumeNextWith {
+                assert(it.stream)
+                assert(it.payload != null)
+                assert(it.index == xIndex)
+
+                Component.deserialized(it.payload!!).apply {
+                    assert(type == xType)
+                    assert(name == xName)
+                    assert(cost == xIndex)
+                    assert(id == xIndex)
+                }
+            }
+
+            StepVerifier
+                .create(result)
+                .check(Component.Type.MOTHERBOARD, "mb1", 2)
+                .check(Component.Type.RAM, "ram1", 3)
+                .check(Component.Type.GPU, "gpu1", 4)
+                .verifyComplete()
         }
 
     @Order(3)
     @Test
-    fun testStream_getAll() {
-//        StepVerifier
-//            .create(rSocketRequester
-//                .route("getAll")
-//                .retrieveFlux(Message::class.java))
-//            .consumeNextWith {
-//                assert(it.stream)
-//                assert(it.payload != null)
-//            }
-//            .expectComplete()
-    }
+    fun test_stream_getComponents() = rSocketRequester
+        .route("getAll")
+        .retrieveFlux(Message::class.java)
+        .doAction { StepVerifier.create(it).expectNextCount(4).verifyComplete() }
 }
