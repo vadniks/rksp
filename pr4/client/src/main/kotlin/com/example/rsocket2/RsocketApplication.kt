@@ -31,15 +31,15 @@ class RsocketApplication(
 
         while (true) {
             when (scanner.next()) {
-                "q" -> break
+                "exit" -> break
                 "get" -> getComponents().forEach { println(it.serialized) }
                 "add" -> {
-                    println("enter component in serialized form:")
+                    println("enter component in serialized form:") // (CPU,a,1,null)
                     addComponent(Component.deserialized(scanner.next()))
                 }
                 "specified" -> {
                     println("enter component's id to fetch:")
-                    println(getComponent(scanner.nextInt()))
+                    println(getComponent(scanner.nextInt())?.serialized)
                 }
                 "several" -> {
                     println("enter count of components to add:")
