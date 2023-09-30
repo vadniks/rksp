@@ -129,7 +129,7 @@ class RsocketApplication(
         return if (payload != null) Component.deserialized(payload) else null
     }
 
-    private fun addComponents(components: List<Component>) { // channel // (10,CPU,cpu10,10) (20,CPU,cpu20,20)
+    private fun addComponents(components: List<Component>) { // channel
         assert(connected)
         val condition = AtomicBoolean(false)
 
