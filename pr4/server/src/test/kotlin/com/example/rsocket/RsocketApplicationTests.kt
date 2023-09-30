@@ -2,11 +2,13 @@
 package com.example.rsocket
 
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.rsocket.server.LocalRSocketServerPort
 import org.springframework.messaging.rsocket.RSocketRequester
 import org.springframework.messaging.rsocket.RSocketStrategies
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
@@ -15,22 +17,31 @@ import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 
 @SpringBootTest
-class RsocketApplicationTests(
-    builder: RSocketRequester.Builder,
-    @LocalRSocketServerPort port: Int,
-    rSocketStrategies: RSocketStrategies,
-    repository: Repository
-) {
-    private lateinit var rSocketRequester: RSocketRequester
+class RsocketApplicationTests {
 
-    init {
-        repository.prune()
+    private companion object {
+        @JvmStatic
+        private lateinit var rSocketRequester: RSocketRequester
 
-        rSocketRequester = builder
-            .setupRoute("connect")
-            .setupData(System.currentTimeMillis())
-            .rsocketConnector { it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any())) }
-            .run { runBlocking { connectTcpAndAwait("localhost", port) } }
+        @BeforeAll
+        @JvmStatic
+        fun setup(
+            @Autowired builder: RSocketRequester.Builder,
+            @Autowired rSocketStrategies: RSocketStrategies
+//            @Autowired repository: Repository
+        ) = runBlocking {
+//            repository.prune()
+
+            rSocketRequester = builder
+                .setupRoute("connect")
+                .setupData(System.currentTimeMillis())
+                .rsocketConnector { it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any())) }
+                .connectTcpAndAwait("localhost", 7000)
+        }
+
+//        @AfterAll
+//        @JvmStatic
+//        fun tearDown() = rSocketRequester.rsocket()!!.dispose()
     }
 
     private fun assert(condition: Boolean) = assertDoesNotThrow { if (!condition) throw AssertionError() }

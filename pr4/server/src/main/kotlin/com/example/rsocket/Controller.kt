@@ -1,5 +1,6 @@
 package com.example.rsocket
 
+import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -15,6 +16,9 @@ class Controller(private val repo: Repository) {
     private val clients = ArrayList<RSocketRequester>()
 
     private inline fun async(crossinline action: () -> Unit) = runBlocking { launch { action() } }
+
+    @PostConstruct
+    fun init() { println("Initialized") }
 
     @Suppress("unused")
     @ConnectMapping("connect")
