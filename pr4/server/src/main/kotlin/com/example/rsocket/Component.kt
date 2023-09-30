@@ -1,6 +1,7 @@
 
 package com.example.rsocket
 
+import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
@@ -12,6 +13,7 @@ import jakarta.persistence.Table
 data class Component(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     val id: Int,
     val type: Type,
     val name: String,

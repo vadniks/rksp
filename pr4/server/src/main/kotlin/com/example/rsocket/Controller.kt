@@ -16,6 +16,7 @@ class Controller(private val repo: Repository) {
 
     private inline fun async(crossinline action: () -> Unit) = runBlocking { launch { action() } }
 
+    @Suppress("unused")
     @ConnectMapping("connect")
     fun connect(requester: RSocketRequester, @Payload id: Long) = requester.apply {
         rsocket()!!
@@ -29,10 +30,6 @@ class Controller(private val repo: Repository) {
                 clients.remove(requester)
             }
             .subscribe()
-        route("status")
-            .data("open")
-            .send()
-            .subscribe()
     }.run {}
 
     @PreDestroy
@@ -45,7 +42,7 @@ class Controller(private val repo: Repository) {
     fun getComponents() = Flux.create<Message> { emitter ->
         var index = 0
         repo.findAll().forEach {
-            emitter.next(Message(true, it.toString(), index++))
+            emitter.next(Message(true, it.serialized, index++))
         }
         emitter.complete()
     }

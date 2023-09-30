@@ -1,3 +1,6 @@
+
+@file:Suppress("ControlFlowWithEmptyBody")
+
 package com.example.rsoket2
 
 import kotlinx.coroutines.runBlocking
@@ -6,9 +9,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.messaging.rsocket.*
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
-import reactor.core.Disposable
 import reactor.core.publisher.Flux
 import java.lang.RuntimeException
+import java.util.Scanner
+import java.util.concurrent.atomic.AtomicBoolean
 
 @SpringBootApplication
 class RsocketApplication(
@@ -17,11 +21,42 @@ class RsocketApplication(
 ) {
     private lateinit var rsocketRequester: RSocketRequester
     private val id = System.currentTimeMillis()
-    private lateinit var disposable: Disposable
 
     init {
         connect()
-        getComponents().forEach { println(it) }
+
+        val scanner = Scanner(System.`in`)
+        println("enter command:")
+
+        while (true) {
+            when (scanner.next()) {
+                "q" -> break
+                "get" -> getComponents().forEach { println(it.serialized) }
+                "add" -> {
+                    println("enter component in serialized form:")
+                    addComponent(Component.deserialized(scanner.next()))
+                }
+                "specified" -> {
+                    println("enter component's id to fetch:")
+                    println(getComponent(scanner.nextInt()))
+                }
+                "several" -> {
+                    println("enter count of components to add:")
+                    val count = scanner.nextInt()
+                    val list = ArrayList<Component>(count)
+
+                    for (i in 0 until count) {
+                        println("enter component in serialized form:")
+                        list.add(Component.deserialized(scanner.next()))
+                    }
+
+                    addComponents(list)
+                }
+                else -> assert(false)
+            }
+            println("enter command:")
+        }
+
         disconnect()
     }
 
@@ -43,9 +78,8 @@ class RsocketApplication(
     private val connected get() = this::rsocketRequester.isInitialized || rsocketRequester.rsocket()!!.isDisposed
 
     private fun stopStreamsAndChannels() {
-        assert(connected && this::disposable.isInitialized)
+        assert(connected)
         println("stopping...")
-        disposable.dispose()
     }
 
     private fun disconnect() {
@@ -58,13 +92,16 @@ class RsocketApplication(
     private fun getComponents(): List<Component> { // stream
         assert(connected)
         val components = ArrayList<Component>() // TODO: make payload in Component nullable
+        val condition = AtomicBoolean(false)
 
-        disposable = rsocketRequester
+        rsocketRequester
             .route("getAll")
             .data(Message(false, ""))
             .retrieveFlux(Message::class.java)
+            .doOnComplete { condition.set(true) }
             .subscribe { components.add(Component.deserialized(it.payload)) }
 
+        while (!condition.get());
         return components
     }
 
@@ -78,22 +115,31 @@ class RsocketApplication(
             .block()
     }
 
-    private fun getComponent(id: Int): Message { // request-response
+    private fun getComponent(id: Int): Component { // request-response
         assert(connected)
-        return rsocketRequester
+        return Component.deserialized(rsocketRequester
             .route("getOne")
             .data(Message(false, id.toString()))
             .retrieveMono(Message::class.java)
             .block()!!
+            .payload)
     }
 
-    private fun adcComponents(components: List<Component>) { // channel
+    private fun addComponents(components: List<Component>) { // channel // (10,CPU,cpu10,10) (20,CPU,cpu20,20)
         assert(connected)
+        val condition = AtomicBoolean(false)
+
+        var index = 0
+        val flux = Flux.fromIterable(components).map { Message(true, it.serialized, index++) }
+
         rsocketRequester
             .route("addSeveral")
-            .data(Flux.fromIterable(components))
+            .data(flux)
             .retrieveFlux(Message::class.java)
+            .doOnComplete { condition.set(true) }
             .subscribe { println("added " + it.payload) }
+
+        while (!condition.get());
     }
 }
 
