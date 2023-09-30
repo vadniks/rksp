@@ -10,6 +10,6 @@ import org.springframework.stereotype.Repository
 @Repository
 @Scope(SCOPE_SINGLETON) interface Repository : JpaRepository<Component, Int> {
 
-    @Query("truncate table components restart identity")
+    @Query("truncate table components restart identity", nativeQuery = true)
     fun prune()
 }
