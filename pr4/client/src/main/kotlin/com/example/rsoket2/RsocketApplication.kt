@@ -10,7 +10,8 @@ import org.springframework.boot.runApplication
 import org.springframework.messaging.rsocket.*
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
 import reactor.core.publisher.Flux
-import java.lang.RuntimeException
+import java.lang.Exception
+import java.net.ConnectException
 import java.util.Scanner
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -22,11 +23,11 @@ class RsocketApplication(
     private lateinit var rsocketRequester: RSocketRequester
     private val id = System.currentTimeMillis()
 
-    init {
+    init { try {
         connect()
 
         val scanner = Scanner(System.`in`)
-        println("enter command:")
+        println("\n\n\nenter command:")
 
         while (true) {
             when (scanner.next()) {
@@ -58,9 +59,16 @@ class RsocketApplication(
         }
 
         disconnect()
-    }
+    } catch (e: Exception) {
+        when (e) {
+            is IllegalStateException -> println("Illegal state achieved")
+            is ConnectException -> println("Unable to connect")
+            else -> throw e
+        }
+        Runtime.getRuntime().halt(1)
+    } }
 
-    private fun assert(condition: Boolean) { if (!condition) throw RuntimeException() }
+    private fun assert(condition: Boolean) { if (!condition) throw IllegalStateException() }
 
     private fun connect() = runBlocking {
         rsocketRequester = rsocketRequesterBuilder
@@ -77,29 +85,22 @@ class RsocketApplication(
 
     private val connected get() = this::rsocketRequester.isInitialized || rsocketRequester.rsocket()!!.isDisposed
 
-    private fun stopStreamsAndChannels() {
-        assert(connected)
-        println("stopping...")
-    }
-
     private fun disconnect() {
         assert(connected)
-        stopStreamsAndChannels()
+        println("disconnecting...")
         rsocketRequester.rsocket()!!.dispose()
-        println("disconnected")
     }
 
     private fun getComponents(): List<Component> { // stream
         assert(connected)
-        val components = ArrayList<Component>() // TODO: make payload in Component nullable
+        val components = ArrayList<Component>()
         val condition = AtomicBoolean(false)
 
         rsocketRequester
             .route("getAll")
-            .data(Message(false, ""))
             .retrieveFlux(Message::class.java)
             .doOnComplete { condition.set(true) }
-            .subscribe { components.add(Component.deserialized(it.payload)) }
+            .subscribe { components.add(Component.deserialized(it.payload!!)) }
 
         while (!condition.get());
         return components
@@ -115,14 +116,17 @@ class RsocketApplication(
             .block()
     }
 
-    private fun getComponent(id: Int): Component { // request-response
+    private fun getComponent(id: Int): Component? { // request-response
         assert(connected)
-        return Component.deserialized(rsocketRequester
+
+        val payload = rsocketRequester
             .route("getOne")
             .data(Message(false, id.toString()))
             .retrieveMono(Message::class.java)
             .block()!!
-            .payload)
+            .payload
+
+        return if (payload != null) Component.deserialized(payload) else null
     }
 
     private fun addComponents(components: List<Component>) { // channel // (10,CPU,cpu10,10) (20,CPU,cpu20,20)
@@ -143,6 +147,4 @@ class RsocketApplication(
     }
 }
 
-fun main(args: Array<String>) {
-    runApplication<RsocketApplication>(*args)
-}
+fun main(args: Array<String>) = runApplication<RsocketApplication>(*args).run {}

@@ -49,14 +49,14 @@ class Controller(private val repo: Repository) {
 
     @MessageMapping("addOne") // fire-n-forget
     fun addComponent(message: Message): Mono<Void> {
-        async { repo.save(Component.deserialized(message.payload)) }
+        async { repo.save(Component.deserialized(message.payload!!)) }
         return Mono.empty()
     }
 
     @MessageMapping("getOne") // request-response
     fun getComponent(message: Message) = Mono.defer {
-        val found = runBlocking { repo.findById(message.payload.toInt()) }
-        Mono.just(Message(false, if (found.isPresent) found.get().serialized else ""))
+        val found = runBlocking { repo.findById(message.payload!!.toInt()) }
+        Mono.just(Message(false, if (found.isPresent) found.get().serialized else null))
     }
 
     @Suppress("CallingSubscribeInNonBlockingScope")
@@ -65,7 +65,7 @@ class Controller(private val repo: Repository) {
         var index = 0
 
         newOnes
-            .map { Component.deserialized(it.payload) }
+            .map { Component.deserialized(it.payload!!) }
             .doOnNext {
                 async { repo.save(it) }
                 emitter.next(Message(true, it.serialized, index++))
