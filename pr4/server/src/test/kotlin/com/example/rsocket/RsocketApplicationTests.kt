@@ -1,58 +1,71 @@
 
 package com.example.rsocket
 
-import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Order
-import org.junit.Test
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation
+import org.junit.jupiter.api.TestMethodOrder
 import org.junit.jupiter.api.assertDoesNotThrow
-import org.junit.runner.RunWith
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.context.TestConfiguration
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Lazy
 import org.springframework.messaging.rsocket.RSocketRequester
 import org.springframework.messaging.rsocket.RSocketStrategies
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
 import org.springframework.messaging.rsocket.connectTcpAndAwait
 import org.springframework.test.context.TestPropertySource
-import org.springframework.test.context.junit4.SpringRunner
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import reactor.util.retry.Retry
 import java.time.Duration
 
-@RunWith(SpringRunner::class)
-@SpringBootTest(classes = [RsocketApplication::class])
+@TestMethodOrder(OrderAnnotation::class)
+@SpringBootTest
 @TestPropertySource(properties = ["spring.rsocket.server.port=7000"])
 class RsocketApplicationTests {
-    @Autowired private lateinit var builder: RSocketRequester.Builder
-    @Autowired private lateinit var rSocketStrategies: RSocketStrategies
-    private lateinit var rSocketRequester: RSocketRequester
 
-    @PostConstruct
-    fun init() {
-        rSocketRequester = runBlocking {
-            builder
-                .setupRoute("connect")
-                .setupData(System.currentTimeMillis())
-                .rsocketConnector {
-                    it.reconnect(Retry.fixedDelay(2, Duration.ofSeconds(10)))
-                    it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any()))
-                }
-                .connectTcpAndAwait("localhost", 7000)
+    companion object {
+        @JvmStatic
+        private lateinit var rSocketRequester: RSocketRequester
+
+        private val connected get() = this::rSocketRequester.isInitialized
+
+        @BeforeAll
+        @JvmStatic
+        fun setup(
+            @Autowired builder: RSocketRequester.Builder,
+            @Autowired rSocketStrategies: RSocketStrategies,
+            @Autowired repository: Repository
+        ) {
+            repository.prune()
+
+            rSocketRequester = runBlocking {
+                builder
+                    .setupRoute("connect")
+                    .setupData(System.currentTimeMillis())
+                    .rsocketConnector {
+                        it.reconnect(Retry.fixedDelay(2, Duration.ofSeconds(2)))
+                        it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any()))
+                    }
+                    .connectTcpAndAwait("localhost", 7000)
+            }
         }
+
+        @AfterAll
+        @JvmStatic
+        fun teardown() = rSocketRequester.rsocket()!!.dispose()
     }
 
     private fun assert(condition: Boolean) = assertDoesNotThrow { if (!condition) throw AssertionError() }
-
     private inline fun <T : Any> T.doAction(crossinline action: (T) -> Unit) = action(this)
 
     @Order(1)
+    @Test
+    fun test_connection() = assert(connected)
+
+    @Order(2)
     @Test
     fun test_fireNForget_addComponent() = rSocketRequester
         .route("addOne")
@@ -64,7 +77,7 @@ class RsocketApplicationTests {
                 .verifyComplete()
         }
 
-    @Order(2)
+    @Order(3)
     @Test
     fun test_requestResponse_getComponent() = rSocketRequester
         .route("getOne")
@@ -88,7 +101,7 @@ class RsocketApplicationTests {
                 .verifyComplete()
         }
 
-    @Order(3)
+    @Order(4)
     @Test
     fun test_channel_addComponents() = rSocketRequester
         .route("addSeveral")
@@ -102,7 +115,7 @@ class RsocketApplicationTests {
             fun StepVerifier.Step<Message>.check(xType: Component.Type, xName: String, xIndex: Int) = consumeNextWith {
                 assert(it.stream)
                 assert(it.payload != null)
-                assert(it.index == xIndex)
+                assert(it.index == xIndex - 2)
 
                 Component.deserialized(it.payload!!).apply {
                     assert(type == xType)
@@ -120,10 +133,15 @@ class RsocketApplicationTests {
                 .verifyComplete()
         }
 
-    @Order(3)
+    @Order(5)
     @Test
     fun test_stream_getComponents() = rSocketRequester
         .route("getAll")
         .retrieveFlux(Message::class.java)
-        .doAction { StepVerifier.create(it).expectNextCount(4).verifyComplete() }
+        .doAction {
+            StepVerifier
+                .create(it)
+                .expectNextCount(4)
+                .verifyComplete()
+        }
 }
