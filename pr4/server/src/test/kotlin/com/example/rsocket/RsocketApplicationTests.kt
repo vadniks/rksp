@@ -1,47 +1,51 @@
 
 package com.example.rsocket
 
+import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Order
-import org.junit.jupiter.api.Test
+import org.junit.Test
 import org.junit.jupiter.api.assertDoesNotThrow
+import org.junit.runner.RunWith
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Lazy
 import org.springframework.messaging.rsocket.RSocketRequester
 import org.springframework.messaging.rsocket.RSocketStrategies
 import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
 import org.springframework.messaging.rsocket.connectTcpAndAwait
+import org.springframework.test.context.TestPropertySource
+import org.springframework.test.context.junit4.SpringRunner
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
+import reactor.util.retry.Retry
+import java.time.Duration
 
-@SpringBootTest
+@RunWith(SpringRunner::class)
+@SpringBootTest(classes = [RsocketApplication::class])
+@TestPropertySource(properties = ["spring.rsocket.server.port=7000"])
 class RsocketApplicationTests {
+    @Autowired private lateinit var builder: RSocketRequester.Builder
+    @Autowired private lateinit var rSocketStrategies: RSocketStrategies
+    private lateinit var rSocketRequester: RSocketRequester
 
-    private companion object {
-        @JvmStatic
-        private lateinit var rSocketRequester: RSocketRequester
-
-        @BeforeAll
-        @JvmStatic
-        fun setup(
-            @Autowired builder: RSocketRequester.Builder,
-            @Autowired rSocketStrategies: RSocketStrategies
-//            @Autowired repository: Repository
-        ) = runBlocking {
-//            repository.prune()
-
-            rSocketRequester = builder
+    @PostConstruct
+    fun init() {
+        rSocketRequester = runBlocking {
+            builder
                 .setupRoute("connect")
                 .setupData(System.currentTimeMillis())
-                .rsocketConnector { it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any())) }
+                .rsocketConnector {
+                    it.reconnect(Retry.fixedDelay(2, Duration.ofSeconds(10)))
+                    it.acceptor(RSocketMessageHandler.responder(rSocketStrategies, Any()))
+                }
                 .connectTcpAndAwait("localhost", 7000)
         }
-
-//        @AfterAll
-//        @JvmStatic
-//        fun tearDown() = rSocketRequester.rsocket()!!.dispose()
     }
 
     private fun assert(condition: Boolean) = assertDoesNotThrow { if (!condition) throw AssertionError() }
