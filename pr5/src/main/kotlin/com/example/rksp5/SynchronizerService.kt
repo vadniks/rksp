@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct
 import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpHeaders
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.ExchangeStrategies
 import org.springframework.web.reactive.function.client.WebClient
@@ -22,11 +23,12 @@ class SynchronizerService(
     @PostConstruct
     fun init() = logger.info("Server started")
 
-//    @Scheduled(fixedDelay = 60000, initialDelay = 60000)
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000)
     private fun synchronizeSelf() {
-        logger.info("Beginning file synchronization... $serverIds")
+        logger.info("Beginning file synchronization...")
 
         var connectedToSomeone = false
+        var hasSmthToSync = false
 
         for (serverId in serverIds) {
             if (serverId == currentServerId) continue
@@ -36,29 +38,43 @@ class SynchronizerService(
                 .defaultHeader(HttpHeaders.HOST, "$genericServerName$currentServerId")
                 .build()
 
-            val remoteFiles = client.get()
-                .uri("/files")
-                .retrieve()
-                .bodyToMono(String::class.java)
-                .block()
+            val remoteFiles = try {
+                client.get()
+                    .uri("/files")
+                    .retrieve()
+                    .bodyToMono(Array<String>::class.java)
+                    .block()
+            } catch (_: Exception) { null }
+
+            if (remoteFiles == null) {
+                logger.warn("Unable to connect to server$serverId")
+                continue
+            }
 
             connectedToSomeone = true
-            logger.info("@ |$remoteFiles|")
 
-//            for (remote in remoteFiles) {
-//                var found = false
-//
-//                for (local in filesService.getLocalFilesList())
-//                    if (remote == local)
-//                        found = true
-//
-//                if (!found)
-//                    retrieveMissingFile(serverId, remote)
-//            }
+            for (remote in remoteFiles) {
+                var found = false
+
+                for (local in filesService.getLocalFilesList())
+                    if (remote == local)
+                        found = true
+
+                if (!found) {
+                    hasSmthToSync = true
+                    retrieveMissingFile(serverId, remote)
+                }
+            }
         }
 
         if (!connectedToSomeone)
             logger.warn("Unable to connect to any server")
+        else {
+            if (!hasSmthToSync)
+                logger.info("nothing to synchronize")
+            else
+                logger.info("files synchronized")
+        }
     }
 
     fun synchronizeSelf(serverId: Int, file: String) {
