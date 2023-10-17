@@ -4,8 +4,8 @@ import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.Logger
 import org.springframework.core.io.FileSystemResource
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -17,7 +17,9 @@ import org.springframework.web.multipart.MultipartFile
 class Controller(
     private val filesService: FilesService,
     private val logger: Logger,
-    private val genericServerName: String
+    private val genericServerName: String,
+    private val synchronizerService: SynchronizerService,
+    private val currentServerId: Int
 ) {
 
     @GetMapping("/files")
@@ -34,12 +36,30 @@ class Controller(
         else ResponseEntity.notFound()
     }
 
-    @PostMapping("/upload")
-    fun addFile(@RequestParam file: MultipartFile) =
-        if (filesService.addLocalFile(file.name, file.bytes)) ResponseEntity.ok().body("")
-        else ResponseEntity.status(409).body("File already exists")
+    @PostMapping("/upload/{name}")
+    fun addFile(@PathVariable name: String, @RequestParam file: MultipartFile) {
+        val added = filesService.addLocalFile(name, file.bytes)
+        logger.info("file $name ${if (added) "added" else "not added"}")
 
-    @DeleteMapping("/delete/{name}")
-    fun deleteFile(@PathVariable name: String) =
-        if (filesService.removeLocalFile(name)) ResponseEntity.ok() else ResponseEntity.notFound()
+        if (added) synchronizerService.synchronizeOthers(name)
+
+        if (added) ResponseEntity.ok().body("")
+        else ResponseEntity.status(409).body("File already exists")
+    }
+
+    @PostMapping("/notify/{serverId}/{file}")
+    fun notifyFileAdded(
+        @PathVariable serverId: String,
+        @PathVariable file: String,
+        request: HttpServletRequest
+    ) = request.getHeader(HttpHeaders.HOST).run {
+        val valid = this.contains(genericServerName)
+        logger.info("notified ${if (valid) "properly" else "not properly"} about file addition")
+
+        if (!valid) ResponseEntity.status(HttpStatus.FORBIDDEN)
+        else synchronizerService.synchronizeSelf(serverId.toInt(), file).run { ResponseEntity.ok() }
+    }
+
+    @PostMapping("/halt")
+    fun halt() = Runtime.getRuntime().halt(0)
 }
