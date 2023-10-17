@@ -122,7 +122,7 @@ class SynchronizerService(
             .baseUrl("http://$genericServerName$serverId:8080")
             .defaultHeader(HttpHeaders.HOST, "$genericServerName$currentServerId")
             .exchangeStrategies(ExchangeStrategies.builder().codecs {
-                it.defaultCodecs().maxInMemorySize(1.shl(30).toFloat().pow(2).toInt() * 2) // 2097152 bytes = 2 mb
+                it.defaultCodecs().maxInMemorySize(1.shl(10).toFloat().pow(2).toInt() * 2) // 2097152 bytes = 2 mb
             }.build())
             .build()
 
