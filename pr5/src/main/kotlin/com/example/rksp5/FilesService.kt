@@ -11,7 +11,8 @@ class FilesService {
 
     fun getLocalFilesList() = filesDir.listFiles()?.map { it.name } ?: ArrayList(0)
 
-    fun getLocalFile(name: String) = File(filesDir, name).takeIf { it.exists() }
+    fun getLocalFile(name: String) =
+        File(filesDir, name).takeIf { it.exists() }.run { if (this != null) Paths.get(this.absolutePath) else null }
 
     fun addLocalFile(name: String, bytes: ByteArray) = File(filesDir, name).run {
         if (this.exists()) false

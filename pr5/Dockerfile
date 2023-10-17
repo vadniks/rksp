@@ -1,6 +1,7 @@
 
 FROM openjdk:22-ea-17-slim-bullseye
-COPY target/*.jar /app/app.jar
-RUN mkdir /files && chmod 777 /files
 EXPOSE 8080
+RUN mkdir /files && chmod 777 /files
+RUN echo "test" > /files/text.txt
+COPY target/*.jar /app/app.jar
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

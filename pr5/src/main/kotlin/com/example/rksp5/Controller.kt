@@ -1,7 +1,9 @@
 package com.example.rksp5
 
-import org.springframework.core.io.ByteArrayResource
-import org.springframework.http.MediaType
+import jakarta.servlet.http.HttpServletRequest
+import org.slf4j.Logger
+import org.springframework.core.io.FileSystemResource
+import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -12,21 +14,23 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 
 @RestController
-class Controller(private val filesService: FilesService) {
+class Controller(
+    private val filesService: FilesService,
+    private val logger: Logger,
+    private val genericServerName: String
+) {
 
     @GetMapping("/files")
     fun getAvailableFiles() = ResponseEntity.ok(filesService.getLocalFilesList())
 
     @GetMapping("/download/{name}")
-    fun getFile(@PathVariable name: String) = filesService.getLocalFile(name).run {
-        if (this != null) ResponseEntity.ok()
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .header("Content-Disposition", "attachment; filename=\"$name\"")
-            .header("Cache-Control", "no-cache, no-store, must-revalidate")
-            .header("Pragma", "no-cache")
-            .header("Expires", "0")
-            .contentLength(this.length())
-            .body(ByteArrayResource(this.readBytes()))
+    fun getFile(@PathVariable name: String, request: HttpServletRequest) = filesService.getLocalFile(name).run {
+        request.getHeader(HttpHeaders.HOST).also {
+            if (it.contains(genericServerName))
+                logger.info("server $it requested synchronization of the $name file")
+        }
+
+        if (this != null) ResponseEntity.ok().body(FileSystemResource(this))
         else ResponseEntity.notFound()
     }
 
