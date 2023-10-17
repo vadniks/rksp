@@ -14,18 +14,17 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 
 @RestController
-class Controller(
+class Controller( // docker-compose up --build docker-compose restart docker-compose down
     private val filesService: FilesService,
     private val logger: Logger,
     private val genericServerName: String,
-    private val synchronizerService: SynchronizerService,
-    private val currentServerId: Int
+    private val synchronizerService: SynchronizerService
 ) {
 
-    @GetMapping("/files")
+    @GetMapping("/files") // curl http://localhost:8083/files
     fun getAvailableFiles() = ResponseEntity.ok(filesService.getLocalFilesList())
 
-    @GetMapping("/download/{name}")
+    @GetMapping("/download/{name}") // curl http://localhost:8083/download/a --output a.txt
     fun getFile(@PathVariable name: String, request: HttpServletRequest) = filesService.getLocalFile(name).run {
         request.getHeader(HttpHeaders.HOST).also {
             if (it.contains(genericServerName))
@@ -36,7 +35,7 @@ class Controller(
         else ResponseEntity.notFound()
     }
 
-    @PostMapping("/upload/{name}")
+    @PostMapping("/upload/{name}") // curl http://localhost:8080/upload/a --form file='@pom.xml' -v
     fun addFile(@PathVariable name: String, @RequestParam file: MultipartFile) {
         val added = filesService.addLocalFile(name, file.bytes)
         logger.info("file $name ${if (added) "added" else "not added"}")
@@ -60,6 +59,6 @@ class Controller(
         else synchronizerService.synchronizeSelf(serverId.toInt(), file).run { ResponseEntity.ok() }
     }
 
-    @PostMapping("/halt")
+    @PostMapping("/halt") // curl -X POST http://localhost:8084/halt
     fun halt() = Runtime.getRuntime().halt(0)
 }
